@@ -15,8 +15,6 @@ val_dataset = BuildingDataset(img_path=VAL_IMG_PATH, labels_path=VAL_LABELS_PATH
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False)
 
-test = train_dataset.__getitem__(0)[1]
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 num_labels = 2
@@ -32,7 +30,15 @@ model = SegformerForSemanticSegmentation.from_pretrained(
     )
 
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.0001)
-trainer = Trainer(model, optimizer, train_dataloader, val_dataloader, device)
+trainer = Trainer(model=model,
+                  optimizer=optimizer, 
+                  train_dataloader=train_dataloader, 
+                  val_dataloader=val_dataloader, 
+                  device=device, 
+                  es_patience=10,
+                  es_min_delta=0,
+                  verbose=True
+                  )
 trainer.train(num_epochs=5)
 
 print()
