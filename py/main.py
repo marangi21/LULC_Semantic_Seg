@@ -2,6 +2,7 @@ import torch
 from transformers import SegformerImageProcessor, SegformerForSemanticSegmentation
 from torch.utils.data import DataLoader
 from dataset import BuildingDataset
+from trainer import Trainer
 
 TRAIN_IMG_PATH = '/shared/marangi/projects/EVOCITY/building_extraction/data/AerialImageDataset/train/images'
 TRAIN_LABELS_PATH = '/shared/marangi/projects/EVOCITY/building_extraction/data/AerialImageDataset/train/gt'
@@ -13,6 +14,8 @@ train_dataset = BuildingDataset(img_path=TRAIN_IMG_PATH, labels_path=TRAIN_LABEL
 val_dataset = BuildingDataset(img_path=VAL_IMG_PATH, labels_path=VAL_LABELS_PATH, processor=processor, transform=None)
 train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=False)
+
+test = train_dataset.__getitem__(0)[1]
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -27,6 +30,10 @@ model = SegformerForSemanticSegmentation.from_pretrained(
     label2id=label2id,
     ignore_mismatched_sizes=True
     )
-#model.to(device)
+
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.0001)
+trainer = Trainer(model, optimizer, train_dataloader, val_dataloader, device)
+trainer.train(num_epochs=5)
 
 print()
+

@@ -41,9 +41,9 @@ class BuildingDataset(Dataset):
         
         if img.shape[1:] != gt.shape[1:]:
             raise ValueError(f"Shape non congruenti: img {img.shape} vs gt {gt.shape}")
-    
+
         img = torch.from_numpy(img.astype(np.uint8))
-        mask = torch.from_numpy(gt.astype(np.uint8))
+        mask = torch.from_numpy(np.where(gt == 255, 1, 0).astype(np.uint8)) # convertito in 0,1 da 0,255
 
         processed = self.processor(
             images=img,
@@ -52,6 +52,8 @@ class BuildingDataset(Dataset):
         )
         pixel_values = processed['pixel_values'].squeeze(0)
         labels = processed['labels'].squeeze(0)
+        labels = torch.where(labels == 255, torch.tensor(1), torch.tensor(0))
+        labels = labels.long()
 
         return pixel_values, labels
         
