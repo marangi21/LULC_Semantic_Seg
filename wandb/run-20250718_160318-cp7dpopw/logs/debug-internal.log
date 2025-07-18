@@ -1,0 +1,17 @@
+{"time":"2025-07-18T16:03:19.264237649Z","level":"INFO","msg":"stream: starting","core version":"0.21.0"}
+{"time":"2025-07-18T16:03:19.622668015Z","level":"INFO","msg":"stream: created new stream","id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:19.622703542Z","level":"INFO","msg":"stream: started","id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:19.622715053Z","level":"INFO","msg":"writer: Do: started","stream_id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:19.622722497Z","level":"INFO","msg":"handler: started","stream_id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:19.622744378Z","level":"INFO","msg":"sender: started","stream_id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:19.779170548Z","level":"ERROR","msg":"HTTP error","status":403,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-18T16:03:19.779261248Z","level":"ERROR","msg":"runupserter: failed to init run","error":"returned error 403: {\"data\":{\"upsertBucket\":null},\"errors\":[{\"message\":\"permission denied\",\"path\":[\"upsertBucket\"],\"extensions\":{\"code\":\"PERMISSION_ERROR\"}}]}"}
+{"time":"2025-07-18T16:03:20.781476005Z","level":"INFO","msg":"stream: closing","id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:20.785512386Z","level":"ERROR","msg":"sender: uploadConfigFile: stream: no run"}
+{"time":"2025-07-18T16:03:20.990148372Z","level":"ERROR","msg":"HTTP error","status":404,"method":"POST","url":"https://api.wandb.ai/graphql"}
+{"time":"2025-07-18T16:03:20.99024836Z","level":"ERROR","msg":"runfiles: CreateRunFiles returned error: returned error 404: {\"data\":{\"createRunFiles\":null},\"errors\":[{\"message\":\"project my-awesome-team-name/my-awesome-project not found during createRunFiles\",\"path\":[\"createRunFiles\"]}]}"}
+{"time":"2025-07-18T16:03:20.996097055Z","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-07-18T16:03:20.996160935Z","level":"INFO","msg":"handler: closed","stream_id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:20.996174029Z","level":"INFO","msg":"writer: Close: closed","stream_id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:20.99636692Z","level":"INFO","msg":"sender: closed","stream_id":"cp7dpopw"}
+{"time":"2025-07-18T16:03:20.998401321Z","level":"INFO","msg":"stream: closed","id":"cp7dpopw"}
