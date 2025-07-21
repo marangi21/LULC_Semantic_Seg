@@ -2,7 +2,9 @@
 /data
 /temp
 /experiments
+/wandb
 
 # files
 .env
 *.env
+wandb_test.py

@@ -2,10 +2,10 @@ import torch
 from tqdm import tqdm
 from callbacks import EarlyStopping
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-import os
 import wandb
-
-WANDB_API_KEY = os.getenv('WANDB_API_KEY')
+import numpy as np
+from metrics import *
+import torch.nn.functional as F
 
 class Trainer():
     """
@@ -77,16 +77,15 @@ class Trainer():
         # Roba per tracking
         self.train_losses = []
         self.val_losses = []
-        self.learning_rates = {
-            'epoch': [],        # epoca in cui quel lr[i] viene impostato
-            'lr': []            # valore di lr[i] (i-esimo lr utilizzato)
-        }
+        self.val_metrics = []
 
     def train_one_epoch(self):
         self.model.train()
         total_loss = 0
         num_batches = 0
-        for i , (img, mask) in enumerate(self.train_dataloader):
+
+        progress_bar = tqdm(self.train_dataloader, desc='Training (batches)', leave=False)
+        for i , (img, mask) in enumerate(progress_bar):
             img, mask = img.to(self.device), mask.to(self.device)
             self.optimizer.zero_grad()
             # Forward pass
@@ -98,24 +97,46 @@ class Trainer():
             total_loss += loss.item()
             num_batches += 1
 
-            if i % 10 == 0:
-                print(f"Batch: {i}/{len(self.train_dataloader)}, loss: {loss.item():.4f}")
-        
+            progress_bar.set_postfix({'loss': f'{loss.item():.4f}'})
+
         return total_loss / num_batches
 
-    def validate(self):
+    def validate_one_epoch(self):
         self.model.eval()
         total_loss = 0
         num_batches = 0
+        all_predictions = [] # accumulatore di predizioni (per calcolare metriche di valutazione)
+        all_targets = [] # accumulatore di target (ground truth)
         with torch.no_grad():
-            for img, mask in self.val_dataloader:
+            progress_bar = tqdm(self.val_dataloader, desc='Validating', leave=False)
+            for img, mask in progress_bar:
                 img, mask = img.to(self.device), mask.to(self.device)
                 outputs = self.model(img, mask)
                 loss = outputs.loss
+
+                logits = outputs.logits
+                target_size = mask.shape[-2:]
+                upsampled_logits = F.interpolate(
+                    input=logits,
+                    size = target_size,
+                    mode='bilinear',
+                    align_corners=False
+                ) 
+                predictions = torch.argmax(upsampled_logits, dim=1) # logits.shape = [batch_seize, num_classes (2), width, heigth]
+                all_predictions.append(predictions.cpu().numpy())
+                all_targets.append(mask.cpu().numpy())
+
                 total_loss += loss.item()
                 num_batches +=1
 
-        return total_loss / num_batches
+                progress_bar.set_postfix({'loss': f'{loss.item():.4f}'})
+        # Concatena predizioni e ground truth per calcolare le metriche 1 sola volta per tutta l'epoca di validazione
+        all_predictions = np.concatenate(all_predictions, axis=0)
+        all_targets = np.concatenate(all_targets, axis=0)
+        val_metrics = self.calculate_metrics(all_predictions, all_targets)
+        avg_loss = total_loss / num_batches
+
+        return avg_loss, val_metrics
 
     def train(self, num_epochs):
         print(f"\n🚀 Starting training for {num_epochs} epochs")
@@ -124,20 +145,63 @@ class Trainer():
         print(f"📏 Initial LR: {self.optimizer.param_groups[0]['lr']:.2e}")
         print("-" * 80)
         print()
-        self.learning_rates['epoch'].append(0)
-        self.learning_rates['lr'].append(self.optimizer.param_groups[0]['lr'])
-        for epoch in tqdm(range(num_epochs), desc="Training"):
-            self.train_losses.append(self.train_one_epoch())
-            self.val_losses.append(self.validate())
+        
+        for epoch in tqdm(range(num_epochs), desc="Training (epochs)"):
+            train_loss = self.train_one_epoch()
+            self.train_losses.append(train_loss)
+            val_loss, val_metrics = self.validate_one_epoch()
+            self.val_losses.append(val_loss)
+            self.val_metrics.append(val_metrics)
+            
             # lr scheduler step
-            self.scheduler.step(self.val_losses[-1])
-            self.learning_rates['epoch'].append(epoch+1)
-            self.learning_rates['lr'].append(self.optimizer.param_groups[0]['lr'])
-            # Early stopping check
-            self.early_stopper(self.val_losses[-1], self.model, self.optimizer)            
+            current_lr = self.optimizer.param_groups[0]['lr']
+            self.scheduler.step(val_loss)
+            new_lr = self.optimizer.param_groups[0]['lr']
+            # Early stopping call
+            self.early_stopper(val_loss, self.model, self.optimizer)   
+         
+            # log a wandb
+            log_dict = {
+                'epoch': epoch + 1,
+                'train_loss': train_loss,
+                'val_loss': val_loss,
+                'learning_rate': new_lr,
+                'early_stopping_counter': self.early_stopper.counter,
+
+                # Tutte le metriche di segmentazione
+                'val_pixel_accuracy': val_metrics['pixel_accuracy'],
+                'val_precision': val_metrics['precision'],
+                'val_recall': val_metrics['recall'],
+                'val_f1_score': val_metrics['f1'],
+                'val_iou_building': val_metrics['iou_building'],
+                'val_mean_iou': val_metrics['mean_iou'],
+                'val_dice_coefficient': val_metrics['dice_coefficient']                
+            }
+
+            if new_lr != current_lr:
+                log_dict['lr_reduced'] = True
+                print(f"LR reduced: {current_lr:.4f} -> {new_lr:.4f}")
+            wandb.log(log_dict)
+
             if self.early_stopper.early_stop:
-                print("Early stopping triggered. Training stopped.")
+                print(f"Early stopping triggered at epoch {epoch+1}.")
                 break
             print(f"Epoch {epoch+1}/{num_epochs}, Train Loss: {self.train_losses[epoch]:.4f}, Val Loss: {self.val_losses[epoch]:.4f}, Early Stopping Counter: {self.early_stopper.counter}/{self.es_patience}")
+
         return
+
+    def calculate_metrics(self, all_predictions, all_targets):
+        pred_flat = all_predictions.flatten()
+        target_flat = all_targets.flatten()
+
+        metrics = {
+            'precision': calculate_precision(pred_flat, target_flat),
+            'recall': calculate_recall(pred_flat, target_flat),
+            'f1': calculate_f1(pred_flat, target_flat),
+            'iou_building': calculate_jaccard_building(pred_flat, target_flat),
+            'mean_iou': calculate_mean_iou(pred_flat, target_flat),
+            'pixel_accuracy': calculate_pixel_accuracy(pred_flat, target_flat),
+            'dice_coefficient': calculate_dice_coefficient(pred_flat, target_flat)
+        }
+        return metrics
 

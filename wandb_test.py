@@ -5,7 +5,7 @@ import wandb
 # Start a new wandb run to track this script.
 run = wandb.init(
     # Set the wandb entity where your project will be logged (generally your team name).
-    entity="my-awesome-team-name",
+    entity="giovanni-marangi-22",
     # Set the wandb project where this run will be logged.
     project="my-awesome-project",
     # Track hyperparameters and run metadata.
@@ -15,6 +15,9 @@ run = wandb.init(
         "dataset": "CIFAR-100",
         "epochs": 10,
     },
+    name='renamed-run',
+    notes='test note bla bla bla 1234',
+    tags=['first_tests', 'exploring_wandb']
 )
 
 # Simulate training.
