@@ -9,7 +9,7 @@ from torchvision.transforms import v2
 #LABELS_PATH = '/shared/marangi/projects/EVOCITY/building_extraction/data/AerialImageDataset/train/gt'
 
 class BuildingDataset(Dataset):
-    def __init__(self, img_path, labels_path, processor, transform=None):
+    def __init__(self, img_path, labels_path, processor, transforms=None):
         """
         Args:
             img_path (str): percorso alle immagini
@@ -17,11 +17,11 @@ class BuildingDataset(Dataset):
             transform (callable, optional): opzionale, insieme delle trasformazioni da applicare alle immagini
         """
         self.img_path = img_path
-        self.images = os.listdir(self.img_path)
+        self.images = sorted(os.listdir(self.img_path))
         self.labels_path = labels_path
-        self.labels = os.listdir(self.labels_path)
+        self.labels = sorted(os.listdir(self.labels_path))
         self.processor=processor
-        self.transform=transform
+        self.transforms=transforms
 
     def __len__(self):
         return len(self.images)
@@ -44,6 +44,9 @@ class BuildingDataset(Dataset):
 
         img = torch.from_numpy(img.astype(np.uint8))
         mask = torch.from_numpy(np.where(gt == 255, 1, 0).astype(np.uint8)) # convertito in 0,1 da 0,255
+
+        if self.transforms is not None:
+            img, mask = self.transforms(img, mask)
 
         processed = self.processor(
             images=img,
