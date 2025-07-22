@@ -175,7 +175,7 @@ class Trainer():
                 'val_f1_score': val_metrics['f1'],
                 'val_iou_building': val_metrics['iou_building'],
                 'val_mean_iou': val_metrics['mean_iou'],
-                'val_dice_coefficient': val_metrics['dice_coefficient']                
+                'val_dice_coefficient': val_metrics['dice_coefficient']
             }
 
             if new_lr != current_lr:

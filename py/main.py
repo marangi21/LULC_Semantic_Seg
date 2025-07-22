@@ -41,6 +41,14 @@ model = SegformerForSemanticSegmentation.from_pretrained(
     ignore_mismatched_sizes=True
     )
 
+# Freeze encoder weights per il fine tuning.
+# Decoder-head e classifier weights sono scongelati e trainati.
+# total_weights: 3714658
+# trainable_weights: 395266
+# trainable_percentage: 10.64%
+for param in model.segformer.encoder.parameters():
+    param.requires_grad = False
+
 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, weight_decay=0.0001)
 
 config = {

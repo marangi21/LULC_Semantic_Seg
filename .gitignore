@@ -1,10 +1,10 @@
 # folders
-/data
-/temp
-/experiments
-/wandb
+data/
+temp/
+experiments/
+wandb/
 
 # files
-.env
+.env*
 *.env
 wandb_test.py
