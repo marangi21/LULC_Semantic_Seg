@@ -48,38 +48,3 @@ class EarlyStopping:
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
-        
-
-# Funzione per creare directory dell'esperimento
-def create_experiment_dir():
-    base_dir = Path("experiments/A3TGCN")
-    base_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Trova l'indice del prossimo esperimento
-    existing_dirs = [d for d in base_dir.iterdir() if d.is_dir() and d.name.startswith("exp_")]
-    if not existing_dirs:
-        next_exp_idx = 1
-    else:
-        indices = [int(d.name.split("_")[1]) for d in existing_dirs]
-        next_exp_idx = max(indices) + 1
-    
-    exp_dir = base_dir / f"exp_{next_exp_idx}"
-    exp_dir.mkdir(exist_ok=True)
-    
-    print(f"Experiment directory created: {exp_dir}\n")
-    return exp_dir
-
-# Conversione in tipi nativi di python per la serializzazione JSON
-def convert_numpy_types(obj):
-    if isinstance(obj, dict):
-        return {key: convert_numpy_types(value) for key, value in obj.items()}
-    elif isinstance(obj, list):
-        return [convert_numpy_types(item) for item in obj]
-    elif isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    else:
-        return obj

@@ -74,6 +74,9 @@ class Trainer():
             self.lr_factor = self.scheduler.factor
             self.lr_patience =  self.scheduler.patience
 
+
+
+
         # Roba per tracking
         self.train_losses = []
         self.val_losses = []

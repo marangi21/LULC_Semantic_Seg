@@ -27,10 +27,10 @@ class SegRandomSizeCrop:
         y = random.randint(0, max_y)
         # croppo
         img_cropped = img[:, x:x+crop_size, y:y+crop_size]
-        mask_cropped = mask[x:x+crop_size, y:y+crop_size]
+        mask_cropped = mask[:, x:x+crop_size, y:y+crop_size]
         original_size = (img.shape[1], img.shape[2])
         img_final = F.interpolate(img_cropped.unsqueeze(0), size=original_size, mode='bilinear', align_corners=False).squeeze(0)
-        mask_final = F.interpolate(mask_cropped.unsqueeze(0).unsqueeze(0).float(), size=original_size, mode='nearest').squeeze(0).squeeze(0).long()
+        mask_final = F.interpolate(mask_cropped.unsqueeze(0).float(), size=original_size, mode='nearest').squeeze(0).squeeze(0).long()
         return img_final, mask_final
 
     def __repr__(self):
@@ -62,7 +62,7 @@ class SegRandomRotation:
         mask_rotated = tvf.rotate(mask.unsqueeze(0), angle, expand=True, fill=self.bg_class)
         # Resize alla dimensione originale
         img_final = F.interpolate(img_rotated.unsqueeze(0), size=original_size, mode='bilinear', align_corners=False).squeeze(0)
-        mask_final = F.interpolate(mask_rotated.unsqueeze(0).unsqueeze(0), size=original_size, mode='nearest').squeeze(0).squeeze(0).long()
+        mask_final = F.interpolate(mask_rotated, size=original_size, mode='nearest').squeeze(0).squeeze(0).long()
         return img_final, mask_final
 
     def __repr__(self):
@@ -100,7 +100,7 @@ class SegRandomVerticalFlip:
         if random.random() > self.p:
             return img, mask
         img_flipped = tvf.vflip(img)
-        mask_flipped = tvf.vflip(mask.unsqueeze(0)).squeeze(0) # vflip vuole [C,H,W]
+        mask_flipped = tvf.vflip(mask.unsqueeze(0)).squeeze(0).squeeze(0) # vflip vuole [C,H,W]
         return img_flipped, mask_flipped
 
     def __repr__(self):
@@ -114,7 +114,7 @@ class SegRandomHorizontalFlip:
         if random.random() > self.p:
             return img, mask
         img_flipped = tvf.hflip(img)
-        mask_flipped = tvf.hflip(mask.unsqueeze(0)).squeeze(0) # hflip vuole [C,H,W]
+        mask_flipped = tvf.hflip(mask.unsqueeze(0)).squeeze(0).squeeze(0) # hflip vuole [C,H,W]
         return img_flipped, mask_flipped
     
     def __repr__(self):
