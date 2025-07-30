@@ -133,8 +133,89 @@ class EarlyStoppingCallback(Callback):
 
 # ToDo: implementare
 class WandbCallback(Callback):
-    def __init__(self):
+    def __init__(self, project_name, entity, config=None, log_model_frequency=1, log_best_model=True):
+        """
+        Callback per logging automatico con Weights & Biases
+
+        Args:
+            project_name (str): Nome del progetto su Weights & Biases
+            entity (str): Nome dell'utente o dell'organizzazione su Weights & Biases
+            config (dict, optional): Configurazione del progetto da loggare
+            log_model_frequency (int, optional): Frequenza di logging del modello (ogni N epoche)
+            log_best_model (bool, optional): Se True, logga il miglior modello durante il training
+        """
+        self.project_name = project_name
+        self.entity = entity
+        # NOTE: se fornito, non dovrebbe contenere quello che viene generato in automaticamente auto_config
+        self.config = config or {}
+        self.log_model_frequency = log_model_frequency
+        self.log_best_model = log_best_model
+        self.run = None
+        self.best_metric = None
+        self.best_model_path = None
+
+    @override
+    def on_train_start(self, trainer):
+        """Inizializza la sessione Weights & Biases all'inizio del training"""
+        import wandb
+        # Aggiungi automaticamente info sul modello e ottimizzatore al config
+        auto_config = {**self.config}
+        if hasattr(trainer.model, '__class__'):
+            if auto_config.get('model_class') is None:
+                auto_config['model_class'] = trainer.model.__class__.__name__
+        if hasattr(trainer.optimizer, '__class__'):
+            if auto_config.get('optimizer_class') is None:
+                auto_config['optimizer_class'] = trainer.optimizer.__class__.__name__
+        if hasattr(trainer, 'device'):
+            if auto_config.get('device') is None:
+                auto_config['device'] = str(trainer.device)
+        if hasattr(trainer.optimizer, 'param_groups'):
+            if auto_config.get('learning_rate') is None:
+                auto_config['learning_rate'] = trainer.optimizer.param_groups[0]['lr']
+        if hasattr(trainer, 'train_dataloader'):
+            if auto_config.get('train_dataset_size') is None:
+                auto_config['train_dataset_size'] = len(trainer.train_dataloader.dataset)
+            if auto_config.get('train_batch_size') is None:
+                auto_config['train_batch_size'] = trainer.train_dataloader.batch_size
+        if hasattr(trainer, 'val_dataloader'):
+            if auto_config.get('val_dataset_size') is None:
+                auto_config['val_dataset_size'] = len(trainer.val_dataloader.dataset)
+            if auto_config.get('val_batch_size') is None:
+                auto_config['val_batch_size'] = trainer.val_dataloader.batch_size
+
+
+        self.run = wandb.init(
+            project=self.project_name,
+            entity=self.entity,
+            config=auto_config,
+            reinit=True
+            )
+        wandb.watch(trainer.model, log='all', log_freq=100)
+        print(f"W&B run inizializzato: {self.run.url}")
+    
+    @override
+    def on_epoch_end(self, trainer, epoch, logs):
+        """Logga le metriche e il modello alla fine di ogni epoca"""
+        if self.run is None:
+            return # non fa nulla se la run wandb non è inizializzata
+        import wandb
+        log_data = {
+            'epoch': epoch+1,
+            **logs  # Unisce ai logs tutti il dizionario kwargs metriche passate nei logs
+        }
         pass
+
+    @override
+    def on_validation_end(self, trainer, logs):
+        """Logga le metriche di validazione e gestisce il salvataggio del miglior modello"""
+        pass
+
+    @override
+    def on_train_end(self, trainer):
+        """Finalizza la run W&B"""
+        pass
+
+
     
 # ToDo: implementare
 class LRSchedulerCallback(Callback):
