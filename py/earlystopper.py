@@ -1,7 +1,7 @@
 import numpy as np
 from pathlib import Path
 
-class EarlyStopping:
+class EarlyStopper:
     """
     Classe che implementa il meccanismo di Early Stopping
 

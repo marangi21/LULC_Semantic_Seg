@@ -1,6 +1,6 @@
 import torch
 from tqdm import tqdm
-from callbacks import EarlyStopping
+from py.earlystopper import EarlyStopping
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import wandb
 import numpy as np
