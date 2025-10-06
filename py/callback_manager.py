@@ -104,6 +104,8 @@ class EarlyStoppingCallback(Callback):
         else:
             raise ValueError("'mode' passato ad EarlyStoppingCallback deve essere 'min' o 'max'")
         
+        
+        
     def _check_improvement_min(self, current_value):
         """Controlla se la metrica monitorata è migliorata in modalità min"""
         if self.best_loss is None:
@@ -117,6 +119,7 @@ class EarlyStoppingCallback(Callback):
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
+
     def _check_improvement_max(self, current_value):
         """Controlla se la metrica monitorata è migliorata in modalità max"""
         if self.best_loss is None:

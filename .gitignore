@@ -7,4 +7,5 @@ wandb/
 # files
 .env*
 *.env
+.env
 wandb_test.py
