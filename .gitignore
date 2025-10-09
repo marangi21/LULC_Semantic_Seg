@@ -9,3 +9,8 @@ wandb/
 *.env
 .env
 wandb_test.py
+
+# logs
+lightning_logs/
+checkpoints/
+*.pt
