@@ -1,7 +1,5 @@
 from datamodule import WUSUSegmentationDataModule
 from terratorch.tasks import SemanticSegmentationTask
-from terratorch import BACKBONE_REGISTRY
-import json
 import lightning.pytorch as pl
 from lightning.pytorch import loggers as pl_loggers
 from lightning.pytorch.callbacks import EarlyStopping
@@ -10,7 +8,6 @@ import logging
 from rasterio.errors import NotGeoreferencedWarning
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i warning di rasterio sulle immagini non georeferenziate
 logging.getLogger("tendorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
-from terratorch.models.decoders import UNetDecoder
 
 def main():
     DATA_ROOT = "/shared/marangi/projects/EVOCITY/building_extraction/data/WUSU_preprocessed"
@@ -61,7 +58,7 @@ def main():
         freeze_backbone = False,                     # congelamento del backbone
         freeze_decoder = False,                     # non congelo il decoder
         freeze_head = False,                        # non congelo la testa
-        plot_on_val=10,                             # ogni quanto plottare visualizzazioni di validation
+        plot_on_val=1,                             # ogni quanto plottare visualizzazioni di validation
         class_names=datamodule.class_names,         # nomi delle classi per le visualizzazioni
         ignore_index=None                              # indice della classe da ignorare nella loss (background)
     )

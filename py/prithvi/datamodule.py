@@ -4,6 +4,39 @@ from glob import glob
 from dataset import SSDataset
 import json
 import torch
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
+"""
+Valori di media e deviazione standard per il dataset PRITHVI
+6 bande: BLUE, GREEN, RED, NIR_NARROW, SWIR1, SWIR2
+Fonte: https://github.com/IBM/terratorch/blob/main/examples/tutorials/PrithviEOv2/prithvi_v2_eo_300_tl_unet_burnscars.ipynb
+
+means=[
+      0.0333497067415863, BLUE
+      0.0570118552053618, GREEN
+      0.0588974813200132, RED
+      0.2323245113436119, NIR_NARROW
+      0.1972854853760658, SWIR_1
+      0.1194491422518656, SWIR_2
+    ],
+    stds=[
+      0.0226913556882377, BLUE
+      0.0268075602230702, GREEN
+      0.0400410984436278, RED
+      0.0779173242367269, NIR_NARROW
+      0.0870873883814014, SWIR_1
+      0.0724197947743781, SWIR_2
+    ]
+
+    WUSU Dataset ha le immagini prese da Gaofen-2 che ha solo 4 bande nell'ordine: 
+    1. BLUE
+    2. GREEN
+    3. RED
+    4. NIR
+"""
+PRITHVI_MEANS = [0.0333497067415863, 0.0570118552053618, 0.0588974813200132, 0.2323245113436119]
+PRITHVI_STDS = [0.0226913556882377, 0.0268075602230702, 0.0400410984436278, 0.0779173242367269]
 
 class WUSUSegmentationDataModule(pl.LightningDataModule):
     def __init__(self, data_root, class_mapping_path, batch_size=8, num_workers=4):
@@ -11,7 +44,6 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
         self.data_root = data_root
         self.batch_size = batch_size
         self.num_workers = num_workers
-        # ToDo: definisco qui le trasformazioni
         self.transform = None
 
         # Remapping degli indici delle classi. WUSU Dataset non ha la classe 5 e questo crea problemi a cuda
@@ -50,15 +82,47 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
         val_mask_paths = sorted(glob(f"{val_path}/**/class/*.tif", recursive=True))
         test_image_paths = sorted(glob(f"{test_path}/**/imgs/*.tif", recursive=True))
         test_mask_paths = sorted(glob(f"{test_path}/**/class/*.tif", recursive=True))
-        self.train_dataset = SSDataset(train_image_paths, train_mask_paths, remap_function=self.remap_mask)
-        self.val_dataset = SSDataset(val_image_paths, val_mask_paths, remap_function=self.remap_mask) 
-        self.test_dataset = SSDataset(test_image_paths, test_mask_paths, remap_function=self.remap_mask)
+        self.train_dataset = SSDataset(train_image_paths,
+                                       train_mask_paths,
+                                       transform=self.get_transform(stage='train'),
+                                       remap_function=self.remap_mask,
+                                       class_mapping=self.original_class_mapping)
+        self.val_dataset = SSDataset(val_image_paths,
+                                     val_mask_paths,
+                                     transform=self.get_transform(stage='val'),
+                                     remap_function=self.remap_mask,
+                                     class_mapping=self.original_class_mapping) 
+        self.test_dataset = SSDataset(test_image_paths,
+                                      test_mask_paths,
+                                      transform=self.get_transform(stage='test'),
+                                      remap_function=self.remap_mask,
+                                      class_mapping=self.original_class_mapping)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+        return DataLoader(
+            self.train_dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
             
     def val_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
+    
+    def get_transform(self, stage: str | None = None) -> A.Compose:
+        """
+        Restituisce la pipeline di trasformazioni di Albumentations.
+        Metodo overridato per poter utilizzare le statistiche di normalizzazione di Prithvi
+        """
+        if stage == 'train' or stage =='fit':
+            transform = A.Compose([
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                A.Normalize(mean=PRITHVI_MEANS, std=PRITHVI_STDS),
+                ToTensorV2()
+            ])
+        else:
+            transform = A.Compose([
+                A.Normalize(mean=PRITHVI_MEANS, std=PRITHVI_STDS),
+                ToTensorV2()
+            ])
+        return transform

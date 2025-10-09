@@ -2,36 +2,18 @@ import rasterio as rio
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-
-"""
-Valori di media e deviazione standard per il dataset PRITHVI
-6 bande: BLUE, GREEN, RED, NIR_NARROW, SWIR1, SWIR2
-Fonte: https://github.com/IBM/terratorch/blob/main/examples/tutorials/PrithviEOv2/prithvi_v2_eo_300_tl_unet_burnscars.ipynb
-
-means=[
-      0.0333497067415863,
-      0.0570118552053618,
-      0.0588974813200132,
-      0.2323245113436119,
-      0.1972854853760658,
-      0.1194491422518656,
-    ],
-    stds=[
-      0.0226913556882377,
-      0.0268075602230702,
-      0.0400410984436278,
-      0.0779173242367269,
-      0.0870873883814014,
-      0.0724197947743781,
-    ]
-"""
+import matplotlib.patches as mpatches
+from matplotlib.colors import ListedColormap, BoundaryNorm
+from legend import SegmentationLegend
 
 class SSDataset:
-    def __init__(self, image_paths, mask_paths, transform=None, remap_function=None):
+    def __init__(self, image_paths, mask_paths, transform=None, remap_function=None, class_mapping=None):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.transform = transform
         self.remap_function = remap_function
+        self.class_mapping = class_mapping
+        self.legend = SegmentationLegend(class_mapping) if class_mapping else None # Crea un'istanza della legenda se viene fornito il mapping
 
     def __len__(self):
         return len(self.image_paths)
@@ -54,7 +36,7 @@ class SSDataset:
             mask = self.remap_function(mask)
 
         if self.transform:
-            augmented = self.transform(image=image, mask=mask)
+            augmented = self.transform(image=image.permute(1, 2, 0).numpy(), mask=mask.numpy()) # Albumentations vuole (H, W, C), restituisce autonomamente un tensore pytorch [C,H,W]
             image = augmented['image']
             mask = augmented['mask']
 
@@ -67,31 +49,56 @@ class SSDataset:
     def plot(self, sample):
         # ToDo: migliorare il plotting come ho fatto in tests.ipynb
         """
-        Visualizza un campione del dataset (immagine e maschera).
+        Visualizza un campione del dataset (immagine, maschera e prediction).
         `sample` è il dizionario restituito da __getitem__.
         Metodo utilizzato internamente da torchgeo (alla quale si appoggia terratorch) per visualizzare i batch
         di validazione ogni plot_on_val epoche.
+        Il metodo è chiameto dal validatio_step del task di terratorch, che aggiunge autonomamente 
+        la predizione al dizionario del campione.
+        Utilizza la SegmentationLegend definita nel costruttore.
         """
+        if not self.legend:
+            raise RuntimeError("Impossibile plottare: class_mapping non fornito al Dataset.")
+        
         image = sample['image']
         mask = sample['mask']
-        filename = sample['filename']
 
         # Le immagini satellitari spesso non sono in un range visualizzabile [0,1] o [0,255].
         # Per una visualizzazione semplice, prendiamo le prime 3 bande (assumendo siano RGB-like)
         # e le normalizziamo in modo aggressivo per renderle visibili.
         # Questo è solo per il plotting, non influisce sul training.
-        rgb = image[:3, :, :].movedim([0], [2])  # Cambia da (C, H, W) a (H, W, C)
-        rgb = (rgb - rgb.min()) / (rgb.max() - rgb.min())
+        rgb_image = torch.permute(image[:3,:,:], (1, 2, 0))  # Cambia da (C, H, W) a (H, W, C)
+        rgb_image_np = rgb_image.numpy()
+        rgb_min = rgb_image_np.min(axis=(0, 1), keepdims=True)
+        rgb_max = rgb_image_np.max(axis=(0, 1), keepdims=True)
+        rgb_image_np = (rgb_image_np - rgb_min) / (rgb_max - rgb_min + 1e-6)
+        rgb_image = torch.from_numpy(np.clip(rgb_image_np, 0, 1))
 
-        # Creiamo una figura con due subplot: immagine e maschera
-        fig, axs = plt.subplots(1, 2, figsize=(10, 5))
+        # Controlla se il sample contiene la predizione e imposta di conseguenza il numero di subplot
+        has_prediction = 'prediction' in sample
+        num_plots = 3 if has_prediction else 2
+        fig, axs = plt.subplots(1, num_plots, figsize=(5*num_plots, 5))
         
-        axs[0].imshow(rgb)
+        if num_plots==1: # Rendi 'axs' sempre un array per consistenza (questa cosa non l'ho capita but here we are folks)
+            axs = [axs]
+
+        # Plot dell'immagine
+        axs[0].imshow(rgb_image)
         axs[0].set_title("Image")
         axs[0].axis("off")
-
-        axs[1].imshow(mask, cmap="viridis") # Usiamo una colormap per vedere le diverse classi
-        axs[1].set_title("Mask")
+        # Plot dalla maschera (ground truth)
+        axs[1].imshow(mask, cmap=self.legend.cmap, norm=self.legend.norm)
+        axs[1].set_title("Ground Truth Mask")
         axs[1].axis("off")
+        # Plot dalla predizione (se presente)
+        if has_prediction:
+            prediction = sample['prediction'].numpy()
+            axs[2].imshow(prediction, cmap=self.legend.cmap, norm=self.legend.norm)
+            axs[2].set_title("Prediction Mask")
+            axs[2].axis("off")
+        
+        # Aggiunge la legenda
+        self.legend.plot()
+        plt.tight_layout(rect=[0, 0, 0.85, 1])
 
         return fig
