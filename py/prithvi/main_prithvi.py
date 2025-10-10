@@ -26,7 +26,7 @@ def main():
 
     # Definisco il modello con un dizionario le cui chiavi sono gli argomenti di EncoderDecoderFactory.build_model
     model_args = {
-        "backbone": "prithvi_eo_v2_300",
+        "backbone": "prithvi_eo_v2_600",
         "decoder": "UNetDecoder",
         "num_classes": num_classes,
         "necks": [
@@ -44,7 +44,7 @@ def main():
             "channels": [256, 128, 64, 32]
         },
         "head_kwargs": {
-            #"out_channels": num_classes, # L'argomento corretto è num_classes, non out_channels
+            #"out_channels": num_classes
             "dropout": 0.5
         }
     }
@@ -67,7 +67,7 @@ def main():
         freeze_backbone = True,                     # congelamento del backbone
         freeze_decoder = False,                     # non congelo il decoder
         freeze_head = False,                        # non congelo la testa
-        plot_on_val=10,                             # ogni quanto plottare visualizzazioni di validation
+        plot_on_val=5,                             # ogni quante epoche plottare visualizzazioni di validation
         class_names=datamodule.class_names,         # nomi delle classi per le visualizzazioni
         ignore_index=None                              # indice della classe da ignorare nella loss (background)
     )
@@ -75,7 +75,7 @@ def main():
     # Definisco un logger per dare un nome all'esperimento
     logger = pl_loggers.TensorBoardLogger(
         save_dir="./lightning_logs",
-        name="prithvi_eo_v2_300_unet_finetune_wusu_first_exp"
+        name=f"{model_args['backbone']}_{model_args['decoder']}_finetune_wusu_first_exp"
     )
 
     # Definisco il trainer
@@ -84,7 +84,7 @@ def main():
         max_epochs=500,             # numero di epoche
         logger=logger,               # logger definito sopra
         #overfit_batches=None,           # per debug: usa solo un batch (sia train che val) per overfitting
-        log_every_n_steps=1,         # logga ogni n step (default 50, mettere 1 per test overfit batches)
+        log_every_n_steps=10,         # logga scalar metrics ogni n batch di training (default 50, mettere 1 per test overfit batches)
         precision="16-mixed",        # usa precisione mista (float16 e float32) per risparmiare memoria GPU
         accumulate_grad_batches=1,  # numero di batch da accumulare prima di un passo di ottimizzazione:
                                     # batch_size=2 e accumulate_grad_batches=4 => effettivo batch size 8,
