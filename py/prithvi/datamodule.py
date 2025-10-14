@@ -37,6 +37,10 @@ means=[
 """
 PRITHVI_MEANS = [0.0333497067415863, 0.0570118552053618, 0.0588974813200132, 0.2323245113436119]
 PRITHVI_STDS = [0.0226913556882377, 0.0268075602230702, 0.0400410984436278, 0.0779173242367269]
+WUSU_MEANS = [60.862431586572065, 60.14200775711625, 59.58274396944217, 69.85295084927102] 
+WUSU_STDS = [33.92976461834848, 34.12665488243311, 35.27960972101711, 41.15969251882479] 
+MEANS = WUSU_MEANS
+STDS = WUSU_STDS
 
 class WUSUSegmentationDataModule(pl.LightningDataModule):
     def __init__(self, data_root, class_mapping_path, batch_size=8, num_workers=4):
@@ -82,21 +86,28 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
         val_mask_paths = sorted(glob(f"{val_path}/**/class/*.tif", recursive=True))
         test_image_paths = sorted(glob(f"{test_path}/**/imgs/*.tif", recursive=True))
         test_mask_paths = sorted(glob(f"{test_path}/**/class/*.tif", recursive=True))
-        self.train_dataset = SSDataset(train_image_paths,
-                                       train_mask_paths,
-                                       transform=self.get_transform(stage='train'),
-                                       remap_function=self.remap_mask,
-                                       class_mapping=self.original_class_mapping)
-        self.val_dataset = SSDataset(val_image_paths,
-                                     val_mask_paths,
-                                     transform=self.get_transform(stage='val'),
-                                     remap_function=self.remap_mask,
-                                     class_mapping=self.original_class_mapping) 
-        self.test_dataset = SSDataset(test_image_paths,
-                                      test_mask_paths,
-                                      transform=self.get_transform(stage='test'),
-                                      remap_function=self.remap_mask,
-                                      class_mapping=self.original_class_mapping)
+        if stage == 'stats':
+            self.train_dataset = SSDataset(train_image_paths,
+                                        train_mask_paths,
+                                        transform=self.get_transform(stage='stats'),
+                                        remap_function=self.remap_mask,
+                                        class_mapping=self.original_class_mapping)
+        else:
+            self.train_dataset = SSDataset(train_image_paths,
+                                        train_mask_paths,
+                                        transform=self.get_transform(stage='train'),
+                                        remap_function=self.remap_mask,
+                                        class_mapping=self.original_class_mapping)
+            self.val_dataset = SSDataset(val_image_paths,
+                                        val_mask_paths,
+                                        transform=self.get_transform(stage='val'),
+                                        remap_function=self.remap_mask,
+                                        class_mapping=self.original_class_mapping) 
+            self.test_dataset = SSDataset(test_image_paths,
+                                        test_mask_paths,
+                                        transform=self.get_transform(stage='test'),
+                                        remap_function=self.remap_mask,
+                                        class_mapping=self.original_class_mapping)
 
     def train_dataloader(self):
         return DataLoader(
@@ -117,12 +128,16 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
             transform = A.Compose([
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
-                A.Normalize(mean=PRITHVI_MEANS, std=PRITHVI_STDS),
+                A.Normalize(mean=MEANS, std=STDS),
+                ToTensorV2()
+            ])
+        elif stage == 'stats':
+            transform = A.Compose([
                 ToTensorV2()
             ])
         else:
             transform = A.Compose([
-                A.Normalize(mean=PRITHVI_MEANS, std=PRITHVI_STDS),
+                A.Normalize(mean=MEANS, std=STDS),
                 ToTensorV2()
             ])
         return transform

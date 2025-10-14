@@ -26,8 +26,8 @@ def main():
 
     # Definisco il modello con un dizionario le cui chiavi sono gli argomenti di EncoderDecoderFactory.build_model
     model_args = {
-        "backbone": "prithvi_eo_v2_600",
-        "decoder": "UNetDecoder",
+        "backbone": "swin_base_patch4_window7_224",
+        "decoder": "FPN",
         "num_classes": num_classes,
         "necks": [
             {"name": "SelectIndices", "indices": [5, 11, 17, 23]},
@@ -69,7 +69,7 @@ def main():
         freeze_head = False,                        # non congelo la testa
         plot_on_val=5,                             # ogni quante epoche plottare visualizzazioni di validation
         class_names=datamodule.class_names,         # nomi delle classi per le visualizzazioni
-        ignore_index=None                              # indice della classe da ignorare nella loss (background)
+        ignore_index=None                              # indice della classe da ignorare
     )
 
     # Definisco un logger per dare un nome all'esperimento
