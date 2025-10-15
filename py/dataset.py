@@ -2,8 +2,6 @@ import rasterio as rio
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib.colors import ListedColormap, BoundaryNorm
 from legend import SegmentationLegend
 
 class SSDataset:
@@ -47,7 +45,6 @@ class SSDataset:
         }
     
     def plot(self, sample):
-        # ToDo: migliorare il plotting come ho fatto in tests.ipynb
         """
         Visualizza un campione del dataset (immagine, maschera e prediction).
         `sample` è il dizionario restituito da __getitem__.

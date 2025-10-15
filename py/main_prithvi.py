@@ -7,13 +7,15 @@ from lightning.pytorch.callbacks import EarlyStopping
 import warnings
 import logging
 from rasterio.errors import NotGeoreferencedWarning
+from pathlib import Path
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i warning di rasterio sulle immagini non georeferenziate
-logging.getLogger("tendorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
+logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
 
 def main():
     seed_everything(42, workers=True) # per riproducibilità
-    DATA_ROOT = "/shared/marangi/projects/EVOCITY/building_extraction/data/WUSU_preprocessed"
-    CLASS_MAPPING_PATH = "/shared/marangi/projects/EVOCITY/building_extraction/data/OpenWUSU512/class_mapping.json"
+    REPO_ROOT = Path(__file__).parent.parent
+    DATA_ROOT = REPO_ROOT / "data" / "WUSU_preprocessed"
+    CLASS_MAPPING_PATH = REPO_ROOT / "data" / "OpenWUSU512" / "class_mapping.json"
     
     # Definisco data module: gestisce tutta la logica di caricamento dei set di dati e istanziazione dei dataloader
     datamodule = WUSUSegmentationDataModule(
@@ -74,7 +76,7 @@ def main():
 
     # Definisco un logger per dare un nome all'esperimento
     logger = pl_loggers.TensorBoardLogger(
-        save_dir="./lightning_logs",
+        save_dir= REPO_ROOT / "lightning_logs",
         name=f"{model_args['backbone']}_{model_args['decoder']}_finetune_wusu_means"
     )
 

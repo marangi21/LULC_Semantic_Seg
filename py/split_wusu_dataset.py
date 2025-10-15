@@ -15,9 +15,10 @@ from pathlib import Path
 random.seed(42)
 
 # Percorsi di origine e destinazione
-SRC_BASE = "/shared/marangi/projects/EVOCITY/building_extraction/data/OpenWUSU512/test"
-VAL_BASE = "/shared/marangi/projects/EVOCITY/building_extraction/data/WUSU_preprocessed/val"
-TEST_BASE = "/shared/marangi/projects/EVOCITY/building_extraction/data/WUSU_preprocessed/test"
+REPO_ROOT = Path(__file__).parent.parent
+SRC_BASE = REPO_ROOT / "data" / "OpenWUSU512" / "test"
+VAL_BASE = REPO_ROOT / "data" / "WUSU_preprocessed" / "val"
+TEST_BASE = REPO_ROOT / "data" / "WUSU_preprocessed" / "test"
 
 def create_directory_structure():
     """Crea la struttura delle directory necessaria."""
