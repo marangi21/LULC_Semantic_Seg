@@ -39,8 +39,12 @@ PRITHVI_MEANS = [0.0333497067415863, 0.0570118552053618, 0.0588974813200132, 0.2
 PRITHVI_STDS = [0.0226913556882377, 0.0268075602230702, 0.0400410984436278, 0.0779173242367269]
 WUSU_MEANS = [60.862431586572065, 60.14200775711625, 59.58274396944217, 69.85295084927102] 
 WUSU_STDS = [33.92976461834848, 34.12665488243311, 35.27960972101711, 41.15969251882479] 
-MEANS = WUSU_MEANS
-STDS = WUSU_STDS
+WUSU_SCALED_MEANS = [0.23867621592812355, 0.2358510244232708, 0.23365783291727554, 0.27393315260030393]
+WUSU_SCALED_STDS = [0.13305789483810862, 0.1338300122317386, 0.1383514053044646, 0.1614105588074333]
+
+
+MEANS = WUSU_SCALED_MEANS
+STDS = WUSU_SCALED_STDS
 
 class WUSUSegmentationDataModule(pl.LightningDataModule):
     def __init__(self, data_root, class_mapping_path, batch_size=8, num_workers=4):
@@ -128,7 +132,7 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
             transform = A.Compose([
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
-                A.Normalize(mean=MEANS, std=STDS),
+                A.Normalize(mean=MEANS, std=STDS, max_pixel_value=255.0),
                 ToTensorV2()
             ])
         elif stage == 'stats':
@@ -137,7 +141,7 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
             ])
         else:
             transform = A.Compose([
-                A.Normalize(mean=MEANS, std=STDS),
+                A.Normalize(mean=MEANS, std=STDS, max_pixel_value=255.0),
                 ToTensorV2()
             ])
         return transform

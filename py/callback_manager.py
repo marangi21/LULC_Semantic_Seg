@@ -2,7 +2,7 @@ from abc import ABC
 from typing import override
 
 class Callback(ABC):
-    """Classe base astratte per tutti i callback"""
+    """Classe base astratta per tutti i callback"""
     def on_train_start(self, trainer):
         """Chiamato all'inizio del training."""
         pass
@@ -149,7 +149,7 @@ class WandbCallback(Callback):
         """
         self.project_name = project_name
         self.entity = entity
-        # NOTE: se fornito, non dovrebbe contenere quello che viene generato in automaticamente auto_config
+        # NOTE: se fornito, non dovrebbe contenere quello che viene generato automaticamente in auto_config
         self.config = config or {}
         self.log_model_frequency = log_model_frequency
         self.log_best_model = log_best_model

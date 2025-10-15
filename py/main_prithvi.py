@@ -19,14 +19,14 @@ def main():
     datamodule = WUSUSegmentationDataModule(
         data_root=DATA_ROOT,
         class_mapping_path=CLASS_MAPPING_PATH,
-        batch_size=8,
+        batch_size=2,
         num_workers=4
     )
     num_classes = len(datamodule.class_names)
 
     # Definisco il modello con un dizionario le cui chiavi sono gli argomenti di EncoderDecoderFactory.build_model
     model_args = {
-        "backbone": "swin_base_patch4_window7_224",
+        "backbone": "prithvi_eo_v2_600",
         "decoder": "FPN",
         "num_classes": num_classes,
         "necks": [
@@ -54,7 +54,7 @@ def main():
         model_args=model_args,                      # Argomenti per la ModelFactory
         model_factory="EncoderDecoderFactory",      # ModelFactory class che "assembla" backbone, neck, decoder, head
         loss='ce',                                  # cross-entropy loss
-        lr=1e-4,                                    # learning rate
+        lr=1e-5,                                    # learning rate
         optimizer="AdamW",                          # ottimizzatore AdamW
         optimizer_hparams={"weight_decay": 0.001},   # dizionario di iperparametri per opt
         scheduler="ReduceLROnPlateau",           # lr scheduler 
@@ -64,7 +64,7 @@ def main():
             "patience": 5,
             "min_lr": 1e-8
         },
-        freeze_backbone = True,                     # congelamento del backbone
+        freeze_backbone = False,                     # congelamento del backbone
         freeze_decoder = False,                     # non congelo il decoder
         freeze_head = False,                        # non congelo la testa
         plot_on_val=5,                             # ogni quante epoche plottare visualizzazioni di validation
@@ -75,7 +75,7 @@ def main():
     # Definisco un logger per dare un nome all'esperimento
     logger = pl_loggers.TensorBoardLogger(
         save_dir="./lightning_logs",
-        name=f"{model_args['backbone']}_{model_args['decoder']}_finetune_wusu_first_exp"
+        name=f"{model_args['backbone']}_{model_args['decoder']}_finetune_wusu_means"
     )
 
     # Definisco il trainer
@@ -86,7 +86,7 @@ def main():
         #overfit_batches=None,           # per debug: usa solo un batch (sia train che val) per overfitting
         log_every_n_steps=10,         # logga scalar metrics ogni n batch di training (default 50, mettere 1 per test overfit batches)
         precision="16-mixed",        # usa precisione mista (float16 e float32) per risparmiare memoria GPU
-        accumulate_grad_batches=1,  # numero di batch da accumulare prima di un passo di ottimizzazione:
+        accumulate_grad_batches=4,  # numero di batch da accumulare prima di un passo di ottimizzazione:
                                     # batch_size=2 e accumulate_grad_batches=4 => effettivo batch size 8,
                                     # utile se batch_size è limitato dalla memoria GPU
         callbacks=[EarlyStopping(
