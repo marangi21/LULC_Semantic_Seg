@@ -4,7 +4,7 @@ from transformers import AutoModel
 from segmentation_models_pytorch import DeepLabV3Plus
 import math
 
-class DINOv3ForSemanticSegmentation(nn.Module):
+class DINOv3ForSemanticSegmentation(nn.Module):vfds
     def __init__(self, num_classes=11, in_channels=4):
         super(DINOv3ForSemanticSegmentation, self).__init__()
         self.backbone = AutoModel.from_pretrained(
