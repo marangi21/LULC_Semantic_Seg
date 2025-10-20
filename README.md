@@ -52,12 +52,18 @@ This section details the objective, hypothesis, methodology, and conclusions for
 - **Methodology**: Used a Prithvi-EO-2.0 backbone and a U-Net decoder. A neck module takes output tokens from the 5th, 11th, 17th, and 23rd transformer blocks and maps them to 2D feature maps (with 256, 128, 64, and 32 channels, respectively) to supply the decoder's skip connections. Used the backbone's pre-training statistics to normalize the data.
 - **Results**: The model learned successfully, but overfitting was observed. The training process appeared unstable, likely a side effect of using the original pre-training statistics to normalize the Gaofen-2 data. Visual inspection showed the model often confused spectrally similar classes (e.g., High_Building vs. Low_Building, Structure vs Excavation).
 - **Conclusion**: The pipeline is functioning and validated. The next step is to address the unstable training and overfitting.
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/exp%231.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/exp%231_2.png)
+  
 
 ### Experiment #2: Architectural Modularity Test
 - **Objective**: Test the modularity of the `terratorch` pipeline by swapping the backbone and decoder. Verify if training instability persists with a larger backbone and a different decoder.
 - **Methodology**: Replaced the Prithvi-EO-2.0-300M with the larger Prithvi-EO-2.0-600M backbone and the U-Net decoder with an FPN decoder.
 - **Results**: The framework handled the architectural changes seamlessly. Performance was similar to the first experiment, and the training process remained unstable.
 - **Conclusion**: The pipeline is robust and flexible. The core performance issue is not solely due to the choice of backbone or decoder but could lie in the data processing strategy.
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/exp%232_1.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/exp%232_2.png)
+
 ### Experiment #3: Correcting for Domain Shift via Normalization
 - **Hypothesis**: The unstable training is caused by a severe domain shift between Prithvi's pre-training data (HLS) and the WUSU dataset (Gaofen-2). Normalizing WUSU with its own statistics should stabilize training and improve results.
 - **Methodology**: Calculated per-channel mean and standard deviation for the WUSU dataset's training images. Replicated the Experiment #2 setup but normalized the data with the new calculated statistics. Confirmed a discrepancy in stats, for RGB channels they differ by an order of magnitude:
@@ -75,6 +81,11 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 - **Results**: Significant performance improvement; this configuration achieved the best results so far. This confirms the hypothesis that a carefully tuned differential learning rate is effective for domain adaptation. The model still shows signs of overfitting, which can be addressed later with regularization and more training data.
 - **Conclusion**: This strategy will be used for all future experiments. The focus now shifts to optimizing the model architecture.
 
+![training losses](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/image16.png)
+![validation losses](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/image17.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/fpn_difflr.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/fpn2.png)
+
 ### Experiment #5: Evaluating atrous convolutions
 - **Hypothesis**: A DeepLabV3+ decoder, leveraging atrous convolutions, should handle multi-scale objects and complex boundaries more effectively than an FPN decoder.
 - **Methodology**: Replicated Experiment #5, replacing the FPN decoder with DeepLabV3+.
@@ -83,6 +94,10 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
     - A key insight emerged: the model often correctly identified objects (like roads or woodland) that were missing or incorrectly labeled in the ground truth. This means the model's actual performance is probably higher than the metrics suggest, and Prithvi's feature extraction is exceptionally powerful.
 - **Conclusion**: DeepLabV3+ appears to be a better decoder for this task. The dilated convolutions proved effective. The results also highlight the limitations of the dataset's annotations.
 
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/deeplab.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/deeplab2.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/image1c.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/image1d.png)
 ### Experiment #6: DINOv3 Backbone
 - **Objective**: Evaluate the performance of the DINOv2 backbone compared to Prithvi-EO-2.0.
 - **Hypothesis**: `DINOv3` is pre-trained on very high-resolution (0.6m GSD) RGB imagery, and may offer superior spatial feature extraction, potentially improving small object shape detection. However, its lack of pre-training on multispectral data might degrade classification accuracy (as NIR data helps identify materials and vegetation). This presents an interesting trade-off between spatial and spectral adaptation to investigate.
