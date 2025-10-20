@@ -19,6 +19,9 @@ The project utilizes the WUSU dataset, a tri-temporal, high-resolution dataset f
 I chose this dataset mainly for two reasons:
 - Images have a Ground Sampling Distance of 1 meter, which allows to detect changes even in small buildings and roads.
 - Aannotations for all 3 tasks (SS, BCD and SCD) are provided, allowing for a fair comparison among these approaches to find out which one is the best for my use cases.
+
+![Dataset Structure](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/Untitled.png)
+
 ## Experiments Roadmap
 
 I will start by framing the problem as a Semantic Segmentation task, adopting a two-stage approach:
