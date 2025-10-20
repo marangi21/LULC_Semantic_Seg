@@ -19,6 +19,9 @@ The project utilizes the WUSU dataset, a tri-temporal, high-resolution dataset f
 I chose this dataset mainly for two reasons:
 - Images have a Ground Sampling Distance of 1 meter, which allows to detect changes even in small buildings and roads.
 - Aannotations for all 3 tasks (SS, BCD and SCD) are provided, allowing for a fair comparison among these approaches to find out which one is the best for my use cases.
+
+![Dataset Structure](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/Untitled.png)
+
 ## Experiments Roadmap
 
 I will start by framing the problem as a Semantic Segmentation task, adopting a two-stage approach:
@@ -58,8 +61,8 @@ This section details the objective, hypothesis, methodology, and conclusions for
 ### Experiment #3: Correcting for Domain Shift via Normalization
 - **Hypothesis**: The unstable training is caused by a severe domain shift between Prithvi's pre-training data (HLS) and the WUSU dataset (Gaofen-2). Normalizing WUSU with its own statistics should stabilize training and improve results.
 - **Methodology**: Calculated per-channel mean and standard deviation for the WUSU dataset's training images. Replicated the Experiment #2 setup but normalized the data with the new calculated statistics. Confirmed a discrepancy in stats, for RGB channels they differ by an order of magnitude:
-	- **Prithvi Stats**: `MEANS = [0.0333497067415863, 0.0570118552053618, 0.0588974813200132, 0.2323245113436119], `STDS = \[0.0226913556882377, 0.0268075602230702, 0.0400410984436278, 0.0779173242367269]`
-	- **WUSU Stats**: `MEANS = [0.23867621592812355, 0.2358510244232708, 0.23365783291727554, 0.27393315260030393], `STDS = \[0.13305789483810862, 0.1338300122317386, 0.1383514053044646, 0.1614105588074333]
+	- **Prithvi Stats**: MEANS = \[0.0333497067415863, 0.0570118552053618, 0.0588974813200132, 0.2323245113436119], STDS = \[0.0226913556882377, 0.0268075602230702, 0.0400410984436278, 0.0779173242367269]
+	- **WUSU Stats**: MEANS = \[0.23867621592812355, 0.2358510244232708, 0.23365783291727554, 0.27393315260030393], STDS = \[0.13305789483810862, 0.1338300122317386, 0.1383514053044646, 0.1614105588074333]
 - **Results**:
     - The training process stabilized significantly, which was especially evident in the training loss behavior.
     - The new normalization led to demonstrably better results on the validation set and improved visual predictions, particularly for classes like Road.
