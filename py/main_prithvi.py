@@ -35,7 +35,7 @@ def main():
 
     # Definisco il modello con un dizionario le cui chiavi sono gli argomenti di EncoderDecoderFactory.build_model
     model_args = {
-        "backbone": "prithvi_eo_v2_600",
+        "backbone": "prithvi_eo_v2_300",
         "decoder": "UperNetDecoder", 
         "num_classes": num_classes,
         #"necks": [
