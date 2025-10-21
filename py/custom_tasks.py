@@ -1,5 +1,8 @@
 from terratorch.tasks import SemanticSegmentationTask
 import torch
+import torch.nn as nn
+from typing import Optional, Dict, Any, List
+import lightning.pytorch as pl
 
 class DiffLRSemanticSegmentationTask(SemanticSegmentationTask):
 

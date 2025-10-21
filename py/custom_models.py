@@ -119,6 +119,7 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
         if in_channels == 3:
             return  # Nessuna modifica necessaria se 3 canali
         
+        
         # Calcola i nuovi pesi e concatenali a quelli vecchi
         original_weights = self.backbone.embeddings.patch_embeddings.weight.clone().detach() # [4096, 3, 16, 16]
         mean_rgb_weights = original_weights.mean(dim=1, keepdim=True)   # [4096, 1, 16, 16]

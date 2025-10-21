@@ -1,5 +1,3 @@
-from transformers import pipeline
-from transformers import AutoImageProcessor, AutoModel
 from datamodule import WUSUSegmentationDataModule
 from custom_tasks import DiffLRSemanticSegmentationTask
 import lightning.pytorch as pl
@@ -11,9 +9,13 @@ import logging
 from rasterio.errors import NotGeoreferencedWarning
 from pathlib import Path
 import torch
-from models import DINOv3EncoderDeeplabV3PlusDecoder
+from custom_models import DINOv3EncoderDeeplabV3PlusDecoder
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i warning di rasterio sulle immagini non georeferenziate
 logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
+
+ENCODER_LR = 1e-5
+DECODER_LR = HEAD_LR = 1e-3 # using decoder lr for neck too
+WEIGHT_DECAY = 1e-3
 
 def main():
     seed_everything(42, workers=True) # per riproducibilità
@@ -36,14 +38,57 @@ def main():
     )
     model.to(device)
 
-    input = torch.randn([4, 4, 512, 512]).to(device)
-    output = model(input)
-    print("Output shape:", output.shape)  # dovrebbe essere [8, num_classes, 512, 512]
-    
-    print()
+    # parametri custom per l'ottimizzatore con lr differenziati
+    custom_opt_params = {
+        "encoder_lr": ENCODER_LR,
+        "decoder_lr": DECODER_LR,
+        "head_lr": HEAD_LR,
+        "weight_decay": WEIGHT_DECAY
+        }
 
+    # Inizializzo il task di segmentazione
+    task = DiffLRSemanticSegmentationTask(
+        model=model,
+        loss='ce',
+        lr=1e-5,
+        optimizer='AdamW',
+        optimizer_hparams=custom_opt_params,
+        scheduler='ReduceLROnPlateau',
+        scheduler_hparams={
+            'mode': 'min',
+            'factor': 0.5,
+            'patience': 5,
+            'min_lr': 1e-8
+        },
+        plot_on_val=5,
+        class_names=datamodule.class_names,
+        ignore_index=None
+    )
 
+    logger = pl_loggers.TensorBoardLogger(
+        save_dir=REPO_ROOT / "lightning_logs",
+        name=f"{model.__class__.__name__}_wmeans_diffLRs"
+    )
 
+    trainer = pl.Trainer(
+        accelerator='auto',
+        max_epochs=500,
+        logger=logger,
+        overfit_batches=1,
+        log_every_n_steps=1,
+        precision='16-mixed',
+        accumulate_grad_batches=8,
+        callbacks=[
+            EarlyStopping(
+                monitor='val/loss',
+                mode='min',
+                patience=10,
+                verbose=True
+            )
+        ]
+    )
+
+    trainer.fit(task, datamodule)
 
 if __name__ == "__main__":
     main()
