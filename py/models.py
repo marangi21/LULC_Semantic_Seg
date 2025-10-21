@@ -2,15 +2,14 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel
 from segmentation_models_pytorch.decoders.deeplabv3.decoder import DeepLabV3PlusDecoder
-from segmentation_models_pytorch.base import SegmentationHead
+from segmentation_models_pytorch.base.heads import SegmentationHead
 import math
 
-class DINOv3ForSemanticSegmentation(nn.Module):
+class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
     def __init__(self, num_classes=11, in_channels=4):
-        super(DINOv3ForSemanticSegmentation, self).__init__()
+        super(DINOv3EncoderDeeplabV3PlusDecoder, self).__init__()
         self.backbone = AutoModel.from_pretrained(
-            pretrained_model_name_or_path="facebook/dinov3-vit7b16-pretrain-sat493m",
-            device_map="auto"
+            pretrained_model_name_or_path="facebook/dinov3-vitl16-pretrain-sat493m"
         )
         self.hidden_size = self.backbone.config.hidden_size
         self.adapt_patch_embed_to_channels(in_channels)
@@ -28,19 +27,25 @@ class DINOv3ForSemanticSegmentation(nn.Module):
         # Simulaziomne della lista dei canali che un encoder CNN avrebbe prodotto
         # Deeplabv3+ utilizza di default l'elemento a indice [1] per i canali della skip connection (ne ha una sola)
         # l'elemento di indice [-1] (l'ultimo) per i canali in input al modulo ASPP
-        encoder_channel_list = [0, skip_channels, 0, 0, self.hidden_size]
+        encoder_channel_list = [0, 0, skip_channels, self.hidden_size]
         # in pratica l'output dell'encoder passa a ASPP, l'output di ASPP viene upsampled 4x, viene aggiunta
         # la skip connection e poi si passa alla segmentation head
 
-        deeplab_model = DeepLabV3PlusDecoder(
+        self.deeplab_decoder = DeepLabV3PlusDecoder(
             encoder_channels=encoder_channel_list,
+            encoder_depth=5, # dice al decoder quante feature map aspettarsi (in questo caso 5 simulate in channel_list)
+                             # prenderà in autonomia solo gli elementi a indice [1] e [-1], perchè encoder classici (resnet)
+                             # hanno encoder depth pari a 5 di solito
             out_channels=self.decoder_channels,
             output_stride=16,
-            atrous_rates=[12, 24, 36] # valori standard per output_stride=16
+            atrous_rates=[12, 24, 36], # valori standard per output_stride=16
+            aspp_separable= False,  # se usare o no depthwise separable convs nel modulo ASPP. riducono drasticamente il numero di parametri
+                                    # al costo di una leggera perdita di performance. Inizio con False e poi valuto
+            aspp_dropout= 0.25      # tunable
         )
 
         self.segmentation_head = SegmentationHead(
-            in_channles=self.decoder_channels,
+            in_channels=self.decoder_channels,
             out_channels=num_classes,
             kernel_size=1,
             activation=None,
@@ -57,6 +62,13 @@ class DINOv3ForSemanticSegmentation(nn.Module):
                 raise ValueError(f"Il numero di token ({N}) non è un quadrato perfetto. Impossibile effettuare reshape a feature map 2D")
             return tokens.permute(0, 2, 1).reshape(B, C, grid_size, grid_size)
 
+    def get_spatial_tokens(self, hidden_states):
+        """
+        restituisce una tupla di hidden_state nei quali vengono ignorati i primi 5 token (class token + 4 register token)
+        (VISION TRANSFORMERS NEED REGISTERS, https://arxiv.org/pdf/2309.16588)
+        """
+        return tuple(state[:, 5:, :] for state in hidden_states)
+
     def forward(self, x):
         # x shape: [B, C, H, W]
         B, C, H, W = x.shape
@@ -65,14 +77,16 @@ class DINOv3ForSemanticSegmentation(nn.Module):
         # due di questi token saranno trasformati dal neck in feature map per il decoder
         backbone_outputs = self.backbone(x, output_hidden_states=True)
         hidden_states = backbone_outputs.hidden_states      # tuple di tensori, ognuno ha shape [B, num_tokens, hidden_size]
+        # Rimuovo CLS token e Register tokens da tutte le hidden states
+        spatial_hidden_states = self.get_spatial_tokens(hidden_states) # [B, num_tokens-5 (1024), hidden_size]
 
         # Creazione delle feature map dai token
         # Feature map per il modulo ASPP di DeeplabV3+
-        aspp_hidden_state = hidden_states[-1]  # output finale del backbone (output del 40° transformer block di DINOv3)
+        aspp_hidden_state = spatial_hidden_states[-1]  # output finale del backbone (output del 40° transformer block di DINOv3)
         aspp_feature_map = self.tokens_to_image(aspp_hidden_state) # [B, hidden_size, H', W']
 
         # Feature map per la skip connection del decoder DeeplabV3+
-        skip_hidden_state = hidden_states[self.feature_indicies[0]] # output del 10° transformer block di DINOv3
+        skip_hidden_state = spatial_hidden_states[self.feature_indicies[0]] # output del 10° transformer block di DINOv3
         skip_feature_map = self.tokens_to_image(skip_hidden_state) # [B, hidden_size, H'', W'']
 
         # Adattamento della skip connection:
@@ -84,40 +98,14 @@ class DINOv3ForSemanticSegmentation(nn.Module):
             mode='bilinear', 
             align_corners=False
         )
+        # Applica la convoluzione 1x1 alla feature map della skip connection per ridurre i canali
+        skip_feature_map = self.skip_conv(skip_feature_map) # [B, skip_channels, H/4, W/4]
 
-        decoder_features = [None, skip_feature_map, None, None, aspp_feature_map]
-        decoder_output = self.decoder(*decoder_features) # prende da solo indice [1] e [-1] della lista
+        decoder_features = [None, None, skip_feature_map, aspp_feature_map]
+        decoder_output = self.deeplab_decoder(*decoder_features) # prende da solo indice [2] e [-1] della list (unpacked)
         logits = self.segmentation_head(decoder_output)
-        return logits
-    # ToDo: testare!
-
-
-
-
-
-        feature_map = tokens_to_image(last_hidden_state) # [B, hidden_size, H', W']
-        skip_feature_map_1, skip_feature_map_2, skip_feature_map_3, skip_feature_map4 = tokens_to_image(hidden_states)
-
-        # Passaggio nel decoder
-        # Attualmente implementata solo la prima skip connection. Il decoder smp di DeepLabV3+ si
-        # aspetta una lista di features map in input, una per ogni skip connection
-        # bisogna implementarne 4 e scegliere gli indici dei transformer block da cui prendere i token
-        # poi dentro tokens_to_image fare il reshape corretto per ogni feature map come
-        # richiesto dal decoder
-        decoder_output = self.decoder([feature_map, skip_feature_map]) # [B, hidden_size, H, W]
-        # Passaggio nella segmentation head
-        logits = self.head(decoder_output) # [B, num_classes, H, W]
-        # Upsampling finale
-        upsampled_logits = nn.functional.interpolate(
-            logits,
-            size=x.shape[2:],  # dimensioni originali dell'input
-            mode='bilinear',
-            align_corners=False
-        )
-        
-        return upsampled_logits # [B, num_classes, H, W]
-
-
+        predicted_mask = torch.argmax(logits, dim=1)  # [B, H, W] con valori tra 0 e num_classes-1
+        return predicted_mask
 
 
     def adapt_patch_embed_to_channels(self, in_channels):
