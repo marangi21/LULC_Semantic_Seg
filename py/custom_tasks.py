@@ -15,20 +15,15 @@ class DiffLRSemanticSegmentationTask(SemanticSegmentationTask):
         opt_hparams = self.hparams.get("optimizer_hparams", {})
         scheduler = self.hparams.get("scheduler", None)
         scheduler_hparams = self.hparams.get("scheduler_hparams", {})
-        
-        if self.model.decoder._get_name() == "UperNetDecoder":
-            params = [
-                {"params": self.model.encoder.parameters(), "lr": opt_hparams.get("encoder_lr", 1e-6)},
-                {"params": self.model.decoder.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)},
-                {"params": self.model.head.parameters(), "lr": opt_hparams.get("head_lr", 1e-4)}
-            ]
-        else:
-            params = [
-                {"params": self.model.encoder.parameters(), "lr": opt_hparams.get("encoder_lr", 1e-6)},
-                {"params": self.model.neck.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)},
-                {"params": self.model.decoder.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)},
-                {"params": self.model.head.parameters(), "lr": opt_hparams.get("head_lr", 1e-4)}
-            ]
+        params = [
+            {"params": self.model.encoder.parameters(), "lr": opt_hparams.get("encoder_lr", 1e-6)},
+            {"params": self.model.decoder.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)},
+            {"params": self.model.head.parameters(), "lr": opt_hparams.get("head_lr", 1e-4)}
+        ]
+        if hasattr(self.model, 'neck'):
+            params.append(
+                {"params": self.model.neck.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)}
+            )
         optimizer = torch.optim.AdamW(params, weight_decay=opt_hparams.get("weight_decay", 1e-3))
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,

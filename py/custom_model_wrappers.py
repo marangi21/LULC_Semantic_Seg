@@ -3,11 +3,10 @@ Seguendo la documentazione per aggiungere modelli custom a Terratorch:
 https://ibm.github.io/terratorch/models/#adding-a-new-model
 """
 import torch.nn as nn
-from terratorch.models.model import Model, register_factory, ModelOutput
+from terratorch.models.model import Model, ModelOutput
 from custom_models import DINOv3EncoderDeeplabV3PlusDecoder
 # ToDo: implementare model wrapper per DINOv3 + DeeplabV3Plus
 
-@register_factory("dinov3_model_wrapper")
 class DINOv3ModelWrapper(Model, nn.Module):
     def __init__(self, dinov3_model: DINOv3EncoderDeeplabV3PlusDecoder):
         super().__init__()

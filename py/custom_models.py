@@ -6,7 +6,14 @@ from segmentation_models_pytorch.base.heads import SegmentationHead
 import math
 
 class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
-    def __init__(self, num_classes=11, in_channels=4):
+    def __init__(
+            self,
+            num_classes=11,
+            in_channels=4,
+            backbone_kwargs={},
+            decoder_kwargs={},
+            head_kwargs={},
+            **kwargs):
         super(DINOv3EncoderDeeplabV3PlusDecoder, self).__init__()
         self.backbone = AutoModel.from_pretrained(
             pretrained_model_name_or_path="facebook/dinov3-vitl16-pretrain-sat493m"
@@ -19,7 +26,7 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
                                         # 40° blocco (l'ultimo output del backbone) per l'input al modulo ASPP di DeeplabV3+
         
         self.decoder_channels = 256     # numero di canali delle feature map in input al decoder
-        skip_channels = 48              # numero di canali delle feature map per la skip connection
+        skip_channels = 48              # numero di canali delle feature map per la skip connection (proposto dagli autori deeplabv3+)
         
         # Convoluzione 1x1 per adattare la feature map estratta dal backbone alla dimensione richiesta dal decoder per la skip connection
         self.skip_conv = nn.Conv2d(self.hidden_size, skip_channels, kernel_size=1)
@@ -34,14 +41,14 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
         self.deeplab_decoder = DeepLabV3PlusDecoder(
             encoder_channels=encoder_channel_list,
             encoder_depth=5, # dice al decoder quante feature map aspettarsi (in questo caso 5 simulate in channel_list)
-                             # prenderà in autonomia solo gli elementi a indice [1] e [-1], perchè encoder classici (resnet)
+                             # prenderà in autonomia solo gli elementi a indice [2] e [-1], perchè encoder classici (resnet)
                              # hanno encoder depth pari a 5 di solito
             out_channels=self.decoder_channels,
             output_stride=16,
             atrous_rates=[12, 24, 36], # valori standard per output_stride=16
             aspp_separable= False,  # se usare o no depthwise separable convs nel modulo ASPP. riducono drasticamente il numero di parametri
                                     # al costo di una leggera perdita di performance. Inizio con False e poi valuto
-            aspp_dropout= 0.25      # tunable
+            aspp_dropout= decoder_kwargs.get("aspp_dropout", 0.5)      # tunable
         )
 
         self.segmentation_head = SegmentationHead(
@@ -104,8 +111,7 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
         decoder_features = [None, None, skip_feature_map, aspp_feature_map]
         decoder_output = self.deeplab_decoder(*decoder_features) # prende da solo indice [2] e [-1] della list (unpacked)
         logits = self.segmentation_head(decoder_output)
-        predicted_mask = torch.argmax(logits, dim=1)  # [B, H, W] con valori tra 0 e num_classes-1
-        return predicted_mask
+        return logits
 
 
     def adapt_patch_embed_to_channels(self, in_channels):

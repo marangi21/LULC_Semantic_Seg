@@ -9,7 +9,7 @@ import logging
 from rasterio.errors import NotGeoreferencedWarning
 from pathlib import Path
 import torch
-from custom_models import DINOv3EncoderDeeplabV3PlusDecoder
+from custom_model_factories import DINOv3ModelFactory
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i warning di rasterio sulle immagini non georeferenziate
 logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
 
@@ -27,16 +27,30 @@ def main():
     datamodule = WUSUSegmentationDataModule(
         data_root=DATA_ROOT,
         class_mapping_path=CLASS_MAPPING_PATH,
-        batch_size=1,
+        batch_size=2,
         num_workers=4
     )
     num_classes = len(datamodule.class_names)
 
-    model = DINOv3EncoderDeeplabV3PlusDecoder(
+    model_args = {
+        "num_classes": num_classes,
+        "backbone_kwargs": {
+            "in_channels": 4,
+            "skip_feature_block_index": 9 # indice del blocco transformer da cui estrarre la feature map per la skip connection
+        },
+        "decoder_kwargs": {
+            "aspp_dropout": 0.25 # dropout del modulo ASPP del decoder DeeplabV3+
+        },
+        "head_kwargs": {
+            "dropout": 0.5
+        } 
+    }
+
+    """model = DINOv3EncoderDeeplabV3PlusDecoder(
         num_classes=num_classes,
         in_channels=4
     )
-    model.to(device)
+    model.to(device)"""
 
     # parametri custom per l'ottimizzatore con lr differenziati
     custom_opt_params = {
@@ -48,7 +62,8 @@ def main():
 
     # Inizializzo il task di segmentazione
     task = DiffLRSemanticSegmentationTask(
-        model=model,
+        model_args=model_args,
+        model_factory="DINOv3ModelFactory",
         loss='ce',
         lr=1e-5,
         optimizer='AdamW',
@@ -62,12 +77,15 @@ def main():
         },
         plot_on_val=5,
         class_names=datamodule.class_names,
-        ignore_index=None
+        ignore_index=None,
+        freeze_backbone = True,                     # congelamento del backbone
+        freeze_decoder = False,                     # non congelo il decoder
+        freeze_head = False,                        # non congelo la testa
     )
 
     logger = pl_loggers.TensorBoardLogger(
         save_dir=REPO_ROOT / "lightning_logs",
-        name=f"{model.__class__.__name__}_wmeans_diffLRs"
+        name=f"{task.model.__class__.__name__}_wmeans_diffLRs"
     )
 
     trainer = pl.Trainer(
