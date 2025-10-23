@@ -126,3 +126,10 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 ![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval3.png)
 - **Conclusion**: This architecture outperformed all the previous ones across every evaluation metric, proving that DINOv3-sat backbone is better for this task.
 
+## Experiment #7: Evaluating a Mask2Former decoder
+- **Objective:** evaluating the impact of a transformer-based decoder on performances, compared to previous conv-based decoders. 
+- **Methodology:** \[In Progress]
+- **Results:** \[In Progress]
+| train/loss | train/acc | train/pixel_acc | train/mIoU | train/F1 | val/loss | val/acc | val/pixel_acc | val/mIoU | val/F1 |
+| ---------- | --------- | --------------- | ---------- | -------- | -------- | ------- | ------------- | -------- | ------ |
+|      |     |         |      |    |    |   |         |      |  |
