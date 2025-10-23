@@ -46,12 +46,6 @@ def main():
         } 
     }
 
-    """model = DINOv3EncoderDeeplabV3PlusDecoder(
-        num_classes=num_classes,
-        in_channels=4
-    )
-    model.to(device)"""
-
     # parametri custom per l'ottimizzatore con lr differenziati
     custom_opt_params = {
         "encoder_lr": ENCODER_LR,
@@ -78,21 +72,23 @@ def main():
         plot_on_val=5,
         class_names=datamodule.class_names,
         ignore_index=None,
-        freeze_backbone = True,                     # congelamento del backbone
+        freeze_backbone = False,                     # congelamento del backbone
         freeze_decoder = False,                     # non congelo il decoder
         freeze_head = False,                        # non congelo la testa
     )
-
+    encoder_name=task.model.encoder.__class__.__name__
+    decoder_name=task.model.decoder.__class__.__name__
+    is_bb_frozen=next(task.model.encoder.parameters()).requires_grad==False
     logger = pl_loggers.TensorBoardLogger(
         save_dir=REPO_ROOT / "lightning_logs",
-        name=f"{task.model.__class__.__name__}_wmeans_diffLRs"
+        name=f"{encoder_name}_{decoder_name}{"_frozenBB" if is_bb_frozen else ""}"
     )
 
     trainer = pl.Trainer(
         accelerator='auto',
         max_epochs=500,
         logger=logger,
-        overfit_batches=1,
+        #overfit_batches=1,
         log_every_n_steps=1,
         precision='16-mixed',
         accumulate_grad_batches=8,
