@@ -121,8 +121,8 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 
 | train/loss | train/acc | train/pixel_acc | train/mIoU | train/F1 | val/loss | val/acc | val/pixel_acc | val/mIoU | val/F1 |
 | ---------- | --------- | --------------- | ---------- | -------- | -------- | ------- | ------------- | -------- | ------ |
-
 | 0.3955     | 0.7999    | 0.8436          | 0.7177     | 0.8235   | 0.7985   | 0.5439  | 0.7155        | 0.4253     | 0.5553 |
+
 ![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval.png)
 ![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval2.png)
 ![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval3.png)
