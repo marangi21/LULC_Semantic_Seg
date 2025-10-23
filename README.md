@@ -118,12 +118,11 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 - **Hypothesis**: `DINOv3` is pre-trained on very high-resolution (0.6m GSD) RGB imagery, and may offer superior spatial feature extraction, potentially improving small object shape detection. However, its lack of pre-training on multispectral data might degrade classification accuracy (as NIR data helps identify materials and vegetation). This presents an interesting trade-off between spatial and spectral adaptation to investigate.
 - **Methodology**: Replicated Experiment #5, replacing the Prithvi-EO-2.0-600M backbone with a dinov3-vitl16-pretrain-sat493m backbone. Built a custom neck that takes the output of the 10th transformer block of the backbone, reshapes it into an image (with subsequent 1x1 conv) and feeds it as a skip connection for the deeplabv3+ decoder. The index of the transformer block for this process might be a tunable hyperparameter in future experiments. Also, excluded the firs 5 tokens from the backbone embeddings when generating the feature maps as they are 1 CLS token and 4 Register tokens, which are not spatially informative and made token length=1029 which is not a perfect square.
 - **Results**: All evaluation metrics on the validation set improved compared to past experiments. From a visual inspection of some validation batch predictions, it looks like the model is more precise when detecting small buildings shapes and minor roads. After the first epoch the model started labeling lakes as "River". I don't think this is gonna be an issue for this use case because they could be grouped into the same superclass "Water" as the goal is to detect new buildings, roads and excavations.
-![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval.png)
-![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval2.png)
-![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval3.png)
-
 | train/loss | train/acc | train/pixel_acc | train/mIoU | train/F1 | val/loss | val/acc | val/pixel_acc | val/mIoU | val/F1 |
 | ---------- | --------- | --------------- | ---------- | -------- | -------- | ------- | ------------- | -------- | ------ |
 | 0.3955     | 0.7999    | 0.8436          | 0.7177     | 0.8235   | 0.7985   | 0.5439  | 0.7155        | 0.4253     | 0.5553 |
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval2.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval3.png)
 - **Conclusion**: This architecture outperformed all the previous ones across every evaluation metric, proving that DINOv3-sat backbone is better for this task.
 
