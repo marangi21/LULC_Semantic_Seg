@@ -4,6 +4,7 @@ from transformers import AutoModel
 from segmentation_models_pytorch.decoders.deeplabv3.decoder import DeepLabV3PlusDecoder
 from segmentation_models_pytorch.base.heads import SegmentationHead
 import math
+from transformers import Mask2FormerForUniversalSegmentation
 
 class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
     def __init__(
@@ -76,6 +77,7 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
         """
         return tuple(state[:, 5:, :] for state in hidden_states)
 
+# ToDo: reference forward
     def forward(self, x):
         # x shape: [B, C, H, W]
         B, C, H, W = x.shape
@@ -122,9 +124,10 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
         Args:
             in_channels (int): Numero di canali di input desiderati
         """
+        print()
         if in_channels == 3:
+            print("in_channels=3, nessuna modifica al patch_embedding layer")
             return  # Nessuna modifica necessaria se 3 canali
-        
         
         # Calcola i nuovi pesi e concatenali a quelli vecchi
         original_weights = self.backbone.embeddings.patch_embeddings.weight.clone().detach() # [4096, 3, 16, 16]
@@ -146,3 +149,139 @@ class DINOv3EncoderDeeplabV3PlusDecoder(nn.Module):
         self.backbone.embeddings.patch_embeddings = new_patch_embedding
         self.backbone.config.num_channels = in_channels
         print(f"Adapted DINOv3 patch embedding to accept {in_channels} input channels.")
+
+class Dinov3EncoderMask2FormerDecoder(nn.Module):
+    def __init__(
+            self,
+            num_classes=11,
+            in_channels=4,
+            backbone_kwargs={},
+            decoder_kwargs={},
+            head_kwargs={},
+            **kwargs
+            ):
+        super(Dinov3EncoderMask2FormerDecoder, self).__init__()
+        # DINOv3 backbone
+        self.backbone = AutoModel.from_pretrained(
+            pretrained_model_name_or_path="facebook/dinov3-vitl16-pretrain-sat493m"
+        )
+        self.adapt_patch_embed_to_channels(in_channels)
+
+        # Mask2Former decoder: ho bisogno solo del pixel decoder e del transformer decoder
+        mask2former_reference = Mask2FormerForUniversalSegmentation.from_pretrained(
+            pretrained_model_name_or_path="facebook/mask2former-swin-large-cityscapes-semantic"
+        )
+        self.pixel_decoder = mask2former_reference.model.pixel_level_module.decoder
+        self.transformer_decoder = mask2former_reference.model.transformer_module
+
+        # Neck: devo adattare gli output di DINOv3 agli input richiesti dai decoder di Mask2Former
+        self.dinov3_hidden_size = self.backbone.config.hidden_size
+        self.feature_map_indicies = [9, 19, 29, 39] # transformer blocks da cui estrarre i token da convertire in feature maps
+        
+        # 1 feature map va in (adapter_1), le altre 3 in (input_projections) del pixel decoder
+        # calcolo i canali attesi dal decoder per ogni connessione
+        adapter1_in_channels = self.pixel_decoder.adapter_1[0].in_channels # 96
+        input_projections_in_channels = [
+            proj[0].in_channels for proj in self.pixel_decoder.input_projections
+        ] # [768, 384, 192]
+        self.expected_in_channels = [adapter1_in_channels] + input_projections_in_channels[::-1] # [96, 192, 384, 768]
+        
+        # mappa i token [1024] ai 4 layer richiesti [96, 192, 384, 768], con convoluzioni 1x1
+        self.projection_layers = nn.ModuleList([
+            nn.Conv2d(self.dinov3_hidden_size, out_ch, kernel_size=1) for out_ch in self.expected_in_channels
+        ])
+# ToDo: testare e debuggare il forward
+    def forward(self, x):
+        # x shape: [B, C, H, W]
+        B, C, H, W = x.shape
+
+        backbone_outputs = self.backbone(x, output_hidden_states=True)
+        hidden_states = backbone_outputs.hidden_states # ognuno [B, num_tokens, hidden_size]
+        # Rimuovo CLS token e Register tokens da tutte le hidden states
+        spatial_hidden_states = self.get_spatial_tokens(hidden_states) # ognuno [B, num_tokens-5 (1024), hidden_size]
+        
+        dino_feature_maps = []
+        for i, block_idx in enumerate(self.feature_map_indicies):
+            tokens = spatial_hidden_states[block_idx] # [B, 1024, hidden_size]
+            feature_map = self.tokens_to_image(tokens) # [B, hidden_size, H', W'
+            projected_map = self.projection_layers[i](feature_map) # [B, expected_in_channels[i], H', W']
+            dino_feature_maps.append(projected_map)
+
+        # ToDo: debuggare e controllare gli accessi ai dizionari
+        pixel_decoder_output = self.pixel_decoder(dino_feature_maps)
+        transformer_decoder_output = self.transformer_decoder(
+            pixel_decoder_output["pixel_features"],
+            pixel_decoder_output("pixel_mask", None)
+        )
+
+        # Logit e upsampling finale.
+        class_predictions = transformer_decoder_output["class_queries_logits"]
+        mask_queries_logits = transformer_decoder_output["mask_queries_logits"]
+        
+        logits = torch.einsum("bqc,bqhw->bchw", class_predictions, mask_queries_logits) # non ho compreso qui (???)
+
+        # Upsampling alla dimensione originale dell'input
+        logits = nn.functional.interpolate(
+            logits,
+            size=(H, W),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        return logits
+    
+    def tokens_to_image(self, tokens, dim):
+        """
+        Effettua il reshape del token output di un transformer block in una feature map 2D
+        """
+        B, N, C = tokens.shape # batch size, num tokens, hidden size
+        grid_size = int(math.sqrt(N)) # per creare l'immagine [sqrt(N), sqrt(N)]
+        if grid_size * grid_size != N:
+            raise ValueError(f"Il numero di token ({N}) non è un quadrato perfetto. Impossibile effettuare reshape a feature map 2D")
+        feature_map=tokens.permute(0, 2, 1).reshape(B, C, grid_size, grid_size)
+        
+        return feature_map
+
+    def get_spatial_tokens(self, hidden_states):
+        """
+        restituisce una tupla di hidden_state nei quali vengono ignorati i primi 5 token (class token + 4 register token)
+        (VISION TRANSFORMERS NEED REGISTERS, https://arxiv.org/pdf/2309.16588)
+        """
+        return tuple(state[:, 5:, :] for state in hidden_states)
+
+    def adapt_patch_embed_to_channels(self, in_channels):
+        """
+        Adatta il patch embedding layer di DINOv3 per ricevere in input in_channels canali.
+        inizializza i pesi dei canali aggiuntivi come la media dei pesi esistenti.
+
+        Args:
+            in_channels (int): Numero di canali di input desiderati
+        """
+        print()
+        if in_channels == 3:
+            print("in_channels=3, nessuna modifica al patch_embedding layer")
+            return  # Nessuna modifica necessaria se 3 canali
+        
+        # Calcola i nuovi pesi e concatenali a quelli vecchi
+        original_weights = self.backbone.embeddings.patch_embeddings.weight.clone().detach() # [4096, 3, 16, 16]
+        mean_rgb_weights = original_weights.mean(dim=1, keepdim=True)   # [4096, 1, 16, 16]
+        num_extra_channels = in_channels - 3
+        extra_channel_weights = mean_rgb_weights.repeat(1, num_extra_channels, 1, 1)  # [4096, num_extra_channels, 16, 16]
+        new_weights = torch.cat([original_weights, extra_channel_weights] , dim=1) # [4096, in_channels, 16, 16]
+
+        # Sostituisci il patch_embedding vecchio con uno nuovo che accetti in_channels canali
+        new_patch_embedding = nn.Conv2d(in_channels, 4096, kernel_size=(16, 16), stride=(16, 16))
+
+        # Assegna i nuovi pesi al patch embedding layer
+        new_patch_embedding.weight = nn.Parameter(new_weights)
+        # gestisci i bias term se presenti
+        if self.backbone.embeddings.patch_embeddings.bias is not None:
+           new_patch_embedding.bias = nn.Parameter(self.backbone.embeddings.patch_embeddings.bias.clone().detach())
+
+        # Sostituisci il vecchio patch embedding con il nuovo
+        self.backbone.embeddings.patch_embeddings = new_patch_embedding
+        self.backbone.config.num_channels = in_channels
+        print(f"Adapted DINOv3 patch embedding to accept {in_channels} input channels.")
+
+if __name__ == "__main__":
+    print()

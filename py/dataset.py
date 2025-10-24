@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 from legend import SegmentationLegend
 
 class SSDataset:
-    def __init__(self, image_paths, mask_paths, transform=None, remap_function=None, class_mapping=None):
+    def __init__(self, image_paths, mask_paths, in_channels=4, transform=None, remap_function=None, class_mapping=None):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
+        self.in_channels = in_channels
         self.transform = transform
         self.remap_function = remap_function
         self.class_mapping = class_mapping
@@ -27,8 +28,13 @@ class SSDataset:
         except Exception as e:
             print(f"Errore nell'apertura dell'immagine o della mask: {e}")
             raise
+        if image.shape[0] not in [3, 4]:
+            raise ValueError(f"Numero di canali non supportato: {image.shape[0]}. Supportati solo 3 o 4 canali.")
         if image.shape[1:] != mask.shape:
             raise ValueError(f"Shape non congruenti: img {image.shape} vs mask {mask.shape}")
+        # Adatta il numero di canali dell'immagine per esperimenti con immagini RGB
+        if image.shape[0] == 4 and  self.in_channels == 3:
+            image = image[:3, :, :]  # Prendi solo le prime 3 bande
 
         if self.remap_function:
             mask = self.remap_function(mask)

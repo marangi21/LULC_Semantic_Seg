@@ -16,6 +16,8 @@ logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello
 ENCODER_LR = 1e-5
 DECODER_LR = HEAD_LR = 1e-3 # using decoder lr for neck too
 WEIGHT_DECAY = 1e-3
+IN_CHANNELS=4
+MERGE_CLASSES = True
 
 def main():
     seed_everything(42, workers=True) # per riproducibilità
@@ -27,15 +29,17 @@ def main():
     datamodule = WUSUSegmentationDataModule(
         data_root=DATA_ROOT,
         class_mapping_path=CLASS_MAPPING_PATH,
+        in_channels=IN_CHANNELS,
         batch_size=2,
-        num_workers=4
+        num_workers=4,
+        merge_classes=MERGE_CLASSES
     )
     num_classes = len(datamodule.class_names)
 
     model_args = {
         "num_classes": num_classes,
         "backbone_kwargs": {
-            "in_channels": 4,
+            "in_channels": IN_CHANNELS,
             "skip_feature_block_index": 9 # indice del blocco transformer da cui estrarre la feature map per la skip connection
         },
         "decoder_kwargs": {
@@ -81,7 +85,12 @@ def main():
     is_bb_frozen=next(task.model.encoder.parameters()).requires_grad==False
     logger = pl_loggers.TensorBoardLogger(
         save_dir=REPO_ROOT / "lightning_logs",
-        name=f"{encoder_name}_{decoder_name}{"_frozenBB" if is_bb_frozen else ""}"
+        name=f" \
+        {encoder_name} \
+        _{decoder_name}\
+        {"_frozenBB" if is_bb_frozen else ""}\
+        {"_RGB" if IN_CHANNELS==3 else ""}\
+        {"_mergedClasses" if MERGE_CLASSES else ""}"
     )
 
     trainer = pl.Trainer(
