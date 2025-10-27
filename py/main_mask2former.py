@@ -1,4 +1,5 @@
 from custom_tasks import DiffLRSemanticSegmentationTask
+from custom_model_factories import DINOv3ModelFactory
 from datamodule import WUSUSegmentationDataModule
 import lightning.pytorch as pl
 from lightning.pytorch import seed_everything
