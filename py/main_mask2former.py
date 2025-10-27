@@ -1,16 +1,18 @@
-from datamodule import WUSUSegmentationDataModule
 from custom_tasks import DiffLRSemanticSegmentationTask
+from datamodule import WUSUSegmentationDataModule
 import lightning.pytorch as pl
 from lightning.pytorch import seed_everything
 from lightning.pytorch import loggers as pl_loggers
 from lightning.pytorch.callbacks import EarlyStopping
+from pathlib import Path
+import torch
 import warnings
 import logging
 from rasterio.errors import NotGeoreferencedWarning
-from pathlib import Path
-import torch
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i warning di rasterio sulle immagini non georeferenziate
 logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
+
+ENCODER_LR = 1e-5
 
 ENCODER_LR = 1e-5
 DECODER_LR = HEAD_LR = 1e-3 # using decoder lr for neck too
@@ -40,17 +42,16 @@ def main():
         "in_channels": IN_CHANNELS,
         "backbone_kwargs": {
             "in_channels": IN_CHANNELS,
-            "skip_feature_block_index": [9, 39] # indice del blocco transformer da cui estrarre la feature map per la skip connection
+            "skip_feature_block_index": [6, 12, 18, 24], # indice del blocco transformer da cui estrarre la feature map per la skip connection
         },
         "decoder_kwargs": {
-            "name": "deeplabv3plus",
-            "aspp_dropout": 0.25 # dropout del modulo ASPP del decoder DeeplabV3+
+            "name": "mask2former"
         },
         "head_kwargs": {
             "dropout": 0.5
         } 
     }
-
+    
     # parametri custom per l'ottimizzatore con lr differenziati
     custom_opt_params = {
         "encoder_lr": ENCODER_LR,
@@ -59,7 +60,6 @@ def main():
         "weight_decay": WEIGHT_DECAY
         }
 
-    # Inizializzo il task di segmentazione
     task = DiffLRSemanticSegmentationTask(
         model_args=model_args,
         model_factory="DINOv3ModelFactory",
@@ -74,24 +74,22 @@ def main():
             'patience': 5,
             'min_lr': 1e-8
         },
-        plot_on_val=5,
+        plot_on_val=3,
         class_names=datamodule.class_names,
         ignore_index=None,
         freeze_backbone = False,                     # congelamento del backbone
         freeze_decoder = False,                     # non congelo il decoder
         freeze_head = False,                        # non congelo la testa
     )
+
     encoder_name=task.model.encoder.__class__.__name__
     decoder_name=task.model.decoder.__class__.__name__
+    if "Mask2Former" in decoder_name:
+        decoder_name = "Mask2Former"
     is_bb_frozen=next(task.model.encoder.parameters()).requires_grad==False
     logger = pl_loggers.TensorBoardLogger(
         save_dir=REPO_ROOT / "lightning_logs",
-        name=f" \
-        {encoder_name} \
-        _{decoder_name}\
-        {"_frozenBB" if is_bb_frozen else ""}\
-        {"_RGB" if IN_CHANNELS==3 else ""}\
-        {"_mergedClasses" if MERGE_CLASSES else ""}"
+        name=f"{encoder_name}_{decoder_name}{"_frozenBB" if is_bb_frozen else ""}{"_RGB" if IN_CHANNELS==3 else ""}{"_mergedClasses" if MERGE_CLASSES else ""}"
     )
 
     trainer = pl.Trainer(
@@ -113,6 +111,8 @@ def main():
     )
 
     trainer.fit(task, datamodule)
+
+    print()
 
 if __name__ == "__main__":
     main()
