@@ -5,7 +5,17 @@ import matplotlib.pyplot as plt
 from legend import SegmentationLegend
 
 class SSDataset:
-    def __init__(self, image_paths, mask_paths, in_channels=4, transform=None, remap_function=None, class_mapping=None):
+    def __init__(
+            self,
+            image_paths, 
+            mask_paths, 
+            in_channels=4, 
+            transform=None, 
+            remap_function=None, 
+            class_mapping=None,
+            source_gsd: float = 1.0, # espressa in metri
+            target_gsd: float = 1.0  # espressa in metri
+        ):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.in_channels = in_channels
@@ -13,6 +23,9 @@ class SSDataset:
         self.remap_function = remap_function
         self.class_mapping = class_mapping
         self.legend = SegmentationLegend(class_mapping) if class_mapping else None # Crea un'istanza della legenda se viene fornito il mapping
+        self.source_gsd = source_gsd
+        self.target_gsd = target_gsd
+        self.resample = (source_gsd != target_gsd)
 
     def __len__(self):
         return len(self.image_paths)
@@ -43,6 +56,9 @@ class SSDataset:
             augmented = self.transform(image=image.permute(1, 2, 0).numpy(), mask=mask.numpy()) # Albumentations vuole (H, W, C), restituisce autonomamente un tensore pytorch [C,H,W]
             image = augmented['image']
             mask = augmented['mask']
+
+        if self.resample:
+            image, mask = self.change_gsd(image, mask)
 
         return { 
             "image": image,
@@ -105,3 +121,34 @@ class SSDataset:
         plt.tight_layout(rect=[0, 0, 0.85, 1])
 
         return fig
+
+    def change_gsd(self, image, mask):
+        scale_factor = self.source_gsd / self.target_gsd
+        original_shape = image.shape[-2:]
+        new_shape = [int(dim*scale_factor) for dim in original_shape]
+        # Downsampling con bilineare per l'immagine, nearest per la maschera
+        image = torch.nn.functional.interpolate(
+            image.unsqueeze(0),
+            size=new_shape,
+            mode='bilinear',
+            antialias=True
+        ).squeeze(0)
+        mask = torch.nn.functional.interpolate(
+            mask.float().unsqueeze(0).unsqueeze(0),
+            size=new_shape,
+            mode='nearest'
+        ).squeeze(0).squeeze(0).long()
+        # Resize con upsampling per riportare alle dimensioni originali.
+        # Questo simula un sensore a diversa GSD
+        image = torch.nn.functional.interpolate(
+            image.unsqueeze(0),
+            size=original_shape,
+            mode='bilinear',
+            antialias=True
+        ).squeeze(0)
+        mask = torch.nn.functional.interpolate(
+            mask.float().unsqueeze(0).unsqueeze(0),
+            size=original_shape,
+            mode='nearest'
+        ).squeeze(0).squeeze(0).long()
+        return image, mask

@@ -14,12 +14,11 @@ warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i w
 logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
 
 ENCODER_LR = 1e-5
-
-ENCODER_LR = 1e-5
-DECODER_LR = HEAD_LR = 1e-3 # using decoder lr for neck too
+DECODER_LR = HEAD_LR = 1e-4
 WEIGHT_DECAY = 1e-3
 IN_CHANNELS=4
 MERGE_CLASSES = True
+TARGET_GSD = 2.0 # espressa in metri
 
 def main():
     seed_everything(42, workers=True) # per riproducibilità
@@ -34,7 +33,8 @@ def main():
         in_channels=IN_CHANNELS,
         batch_size=2,
         num_workers=4,
-        merge_classes=MERGE_CLASSES
+        merge_classes=MERGE_CLASSES,
+        target_gsd=TARGET_GSD
     )
     num_classes = len(datamodule.class_names)
 

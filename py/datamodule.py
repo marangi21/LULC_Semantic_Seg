@@ -54,7 +54,9 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
             in_channels=4,
             batch_size=8,
             num_workers=4,
-            merge_classes=False # Se true, unisce le classi "High/Low building" e "River/Lake" 
+            merge_classes=False, # Se true, unisce le classi "High/Low building" e "River/Lake"
+            target_gsd=1.0,
+            source_gsd=1.0,
         ):
         super().__init__()
         self.data_root = data_root
@@ -63,6 +65,8 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
         self.transform = None
         self.in_channels=in_channels
         self.merge_classes=merge_classes
+        self.source_gsd=source_gsd
+        self.target_gsd=target_gsd
 
         # Remapping degli indici delle classi. WUSU Dataset non ha la classe 5 e questo crea problemi a cuda
         # Mi costruisco un tensore di conversione in modo tale che prendendo in input una maschera
@@ -136,19 +140,25 @@ class WUSUSegmentationDataModule(pl.LightningDataModule):
                                         in_channels=self.in_channels,
                                         transform=self.get_transform(stage='train'),
                                         remap_function=self.remap_mask,
-                                        class_mapping=self.original_class_mapping)
+                                        class_mapping=self.original_class_mapping,
+                                        target_gsd=self.target_gsd,
+                                        source_gsd=self.source_gsd)
             self.val_dataset = SSDataset(val_image_paths,
                                         val_mask_paths,
                                         in_channels=self.in_channels,
                                         transform=self.get_transform(stage='val'),
                                         remap_function=self.remap_mask,
-                                        class_mapping=self.original_class_mapping) 
+                                        class_mapping=self.original_class_mapping,
+                                        target_gsd=self.target_gsd,
+                                        source_gsd=self.source_gsd) 
             self.test_dataset = SSDataset(test_image_paths,
                                         test_mask_paths,
                                         in_channels=self.in_channels,
                                         transform=self.get_transform(stage='test'),
                                         remap_function=self.remap_mask,
-                                        class_mapping=self.original_class_mapping)
+                                        class_mapping=self.original_class_mapping,
+                                        target_gsd=self.target_gsd,
+                                        source_gsd=self.source_gsd)
 
     def train_dataloader(self):
         return DataLoader(
