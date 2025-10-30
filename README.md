@@ -116,7 +116,7 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 ### Experiment #6: DINOv3 Backbone
 - **Objective**: Evaluate the performance of the DINOv2 backbone compared to Prithvi-EO-2.0.
 - **Hypothesis**: `DINOv3` is pre-trained on very high-resolution (0.6m GSD) RGB imagery, and may offer superior spatial feature extraction, potentially improving small object shape detection. However, its lack of pre-training on multispectral data might degrade classification accuracy (as NIR data helps identify materials and vegetation). This presents an interesting trade-off between spatial and spectral adaptation to investigate.
-- **Methodology**: Replicated Experiment #5, replacing the Prithvi-EO-2.0-600M backbone with a dinov3-vitl16-pretrain-sat493m backbone. Built a custom neck that takes the output of the 10th transformer block of the backbone, reshapes it into an image (with subsequent 1x1 conv) and feeds it as a skip connection for the deeplabv3+ decoder. The weights for the NIR channel were initialized with the mean of the weights in the RGB channels. The index of the transformer block for this process might be a tunable hyperparameter in future experiments. Also, excluded the firs 5 tokens from the backbone embeddings when generating the feature maps as they are 1 CLS token and 4 Register tokens, which are not spatially informative and made token length=1029 which is not a perfect square.
+- **Methodology**: Replicated Experiment #5, replacing the Prithvi-EO-2.0-600M backbone with a dinov3-vitl16-pretrain-sat493m backbone. Built a custom neck that takes the output of the 10th transformer block of the backbone, reshapes it into an image (with subsequent 1x1 conv) and feeds it as a skip connection for the deeplabv3+ decoder. The weights for the NIR channel were initialized with the mean of the weights in the RGB channels. The index of the transformer block for this process might be a tunable hyperparameter in future experiments. Also, excluded the first 5 tokens from the backbone embeddings when generating the feature maps as they are 1 CLS token and 4 Register tokens, which are not spatially informative and made token length=1029 which is not a perfect square.
 - **Results**: All evaluation metrics on the validation set improved compared to past experiments. From a visual inspection of some validation batch predictions, it looks like the model is more precise when detecting small buildings shapes and minor roads. After the first epoch the model started labeling lakes as "River". I don't think this is gonna be an issue for this use case because they could be grouped into the same superclass "Water" as the goal is to detect new buildings, roads and excavations.
 
 | train/loss | train/acc | train/pixel_acc | train/mIoU | train/F1 | val/loss | val/acc | val/pixel_acc | val/mIoU | val/F1 |
@@ -128,11 +128,31 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 ![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/dinov3_eval3.png)
 - **Conclusion**: This architecture outperformed all the previous ones across every evaluation metric, proving that DINOv3-sat backbone is better for this task.
 
-## Experiment #7: Evaluating a Mask2Former decoder
-- **Objective:** evaluating the impact of a transformer-based decoder on performances, compared to previous conv-based decoders. 
-- **Methodology:** \[In Progress]
-- **Results:** \[In Progress]
+## Experiment #7: Evaluating results with merged classes
+- **Objective:** Test how performance changes when merging “High Building” and “Low Building” into “Building”, and “River” and “Lake” into “Waterbody”
+- **Hypothesis:** The model often confuses these class pairs, and since these distinctions are not important for the project goals, merging could reduce task complexity (12 to 10 classes) and improve performance by reducing misclassifications.
+- **Results:**
 
 | train/loss | train/acc | train/pixel_acc | train/mIoU | train/F1 | val/loss | val/acc | val/pixel_acc | val/mIoU | val/F1 |
 | ---------- | --------- | --------------- | ---------- | -------- | -------- | ------- | ------------- | -------- | ------ |
-|      |     |         |      |    |    |   |         |      |  |
+| 0.377     | 0.8342    | 0.8436          | 0.7477     | 0.8509   | 0.652   | 0.5242  | 0.7504        | 0.4306     | 0.5468 |
+
+- **Conclusion:** The experiment obtained the best results so far across almost all evaluation metrics, demonstrating that reducing the complexity of te problem by reducing the number of classes is a valid approach as long as it doesn't negatively impact the business problem.
+
+## Experiment #7: Evaluating a Mask2Former decoder
+- **Objective:** Implement and test a Mask2Former decoder with a DINOv3-sat backbone.
+- - **Hypothesis:** Mask2Former works differently from CNN-based decoders. The aim is to test if the mask query approach with the 2 decoders (pixel decoder and transformer decoder) can bring advantages for this task.
+- **Methodology:** Designed a neck that outputs 4 feature maps from multi-stage DINOv3 backbone outputs. 3 of them are used as skip connections for the pixel decoder, 1 goes to the adapter layer for Mask2Former.
+- **Results:** Training required a lower learning rate for both decoders to converge, making the process slower, but the results are comparable to CNN-based decoders, with a slightly higher validation loss. The model achieves slightly worse performance on the validation set and significantly worse on the training set. The smaller difference between losses suggests less overfitting and better generalization capability, indicating that this configuration could benefit from a larger training dataset and may scale better once hyperparameters are tuned. The model segments roads better, but struggles more with the shapes of small buildings—sometimes merging dense buildings into a single mask. Classification performance is satisfactory and comparable to other alternatives. There is a larger margin for improvement in the mask tokens compared to class tokens, suggesting further tuning of the transformer decoder may be beneficial.
+
+| train/loss | train/acc | train/pixel_acc | train/mIoU | train/F1 | val/loss | val/acc | val/pixel_acc | val/mIoU | val/F1 |
+| ---------- | --------- | --------------- | ---------- | -------- | -------- | ------- | ------------- | -------- | ------ |
+|   0.6002   |  0.7206   |   0.7944      |   0.6287   |  0.5298  |  0.7438  | 0.5034  |    0.7294     |   0.4114   | 0.5298 |
+
+- **Conclusion:** Mask2Former-based models show promise, especially in terms of generalization and road segmentation, and may outperform CNN-based decoders as the training dataset scales.
+
+## Experiment #8: Evaluating different spatial resolutions
+- **Objective**: Assess how the model's performance is affected by changes in spatial resolution (Ground Sampling Distance, GSD) of the satellite imagery.
+- **Hypotesis:** Since satellite images have costs that scale with spatial resolution, it's worth acquiring awareness of what's the lower bound resolution that solves the business problem in order to minimize costs (and therefore risks) of the project. Identifying the resolution threshold at which the model can no longer reliably detect features such as buildings will inform cost-effective decision-making and risk management for future data acquisition.
+- **Methodology:** Instead of acquiring new imagery from different sensors, lower spatial resolution is simulated via a controlled resampling process. High-resolution (1m GSD) images are downsampled to coarser resolutions using a resampling algorithm, and then mosaicked with adjacent areas to maintain the original 512x512 input size. This approach ensures that the real-world area covered by each image increases proportionally as resolution decreases, while the model input dimensions remain consistent to ensure scientifically correct performance comparisons. The model is then evaluated on these resampled images to systematically analyze the impact of spatial resolution on segmentation performance.
+- **Results:** _[In Progress]_
