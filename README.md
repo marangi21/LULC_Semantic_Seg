@@ -149,6 +149,10 @@ Up to this point, experiments were conducted with a completely frozen backbone. 
 | ---------- | --------- | --------------- | ---------- | -------- | -------- | ------- | ------------- | -------- | ------ |
 |   0.6002   |  0.7206   |   0.7944      |   0.6287   |  0.5298  |  0.7438  | 0.5034  |    0.7294     |   0.4114   | 0.5298 |
 
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/m2f_1.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/m2f_2.png)
+![](https://github.com/marangi21/LULC_Semantic_Seg/blob/main/images/m2f_3.png)
+
 - **Conclusion:** Mask2Former-based models show promise, especially in terms of generalization and road segmentation, and may outperform CNN-based decoders as the training dataset scales.
 
 ## Experiment #8: Evaluating different spatial resolutions
