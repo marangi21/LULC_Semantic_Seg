@@ -10,6 +10,8 @@ import logging
 from rasterio.errors import NotGeoreferencedWarning
 from pathlib import Path
 import torch
+import argparse
+
 warnings.filterwarnings("ignore", category=NotGeoreferencedWarning) # ignoro i warning di rasterio sulle immagini non georeferenziate
 logging.getLogger("tensorboardX").setLevel(logging.WARNING) # imposto il livello di logging di tensorboard per non mostrare nulla al di sotto di un warning (tipo i messaggi INFO)
 
@@ -18,10 +20,16 @@ DECODER_LR = HEAD_LR = 1e-3 # using decoder lr for neck too
 WEIGHT_DECAY = 1e-3
 IN_CHANNELS=4
 MERGE_CLASSES = True
-TARGET_GSD = 64 # espressa in metri
+#TARGET_GSD = 64 # espressa in metri
 MASK_MODE = 'mode' # algoritmo di resampling delle maschere: 'mode' (Majority/Mode) o 'nearest' (Nearest Neighbor)
 
 def main():
+    parser = argparse.ArgumentParser(
+                    prog='ProgramName',
+                    description='What the program does',
+                    epilog='Text at the bottom of help')
+    parser.add_argument('--gsd', type=int, type=int, choices=[1, 2, 4, 8, 16, 32], default=1)
+    args = parser.parse_args()
     seed_everything(42, workers=True) # per riproducibilità
     REPO_ROOT = Path(__file__).parent.parent
     DATA_ROOT = REPO_ROOT / "data" / "WUSU_preprocessed"
@@ -35,7 +43,7 @@ def main():
         batch_size=2,
         num_workers=4,
         merge_classes=MERGE_CLASSES,
-        target_gsd=TARGET_GSD,
+        target_gsd=args["gsd"],
         mask_mode='mode' # algoritmo di resampling delle maschere: majority/mode
     )
     num_classes = len(datamodule.class_names)
@@ -95,7 +103,7 @@ def main():
         "frozenBB" if is_bb_frozen else "",
         "RGB" if IN_CHANNELS==3 else "",
         "mergedClasses" if MERGE_CLASSES else "",
-        f"{TARGET_GSD}m_{MASK_MODE}Mask" if TARGET_GSD!=1 else ""
+        f"{args["gsd"]}m_{MASK_MODE}Mask" if args["gsd"]!=1 else ""
     ]
     logger = pl_loggers.TensorBoardLogger(
         save_dir=REPO_ROOT / "lightning_logs",
