@@ -1,4 +1,5 @@
 from datamodule import WUSUSegmentationDataModule
+from custom_model_factories import DINOv3ModelFactory
 from custom_tasks import DiffLRSemanticSegmentationTask
 import lightning.pytorch as pl
 from lightning.pytorch import seed_everything
@@ -17,6 +18,8 @@ DECODER_LR = HEAD_LR = 1e-3 # using decoder lr for neck too
 WEIGHT_DECAY = 1e-3
 IN_CHANNELS=4
 MERGE_CLASSES = True
+TARGET_GSD = 64 # espressa in metri
+MASK_MODE = 'mode' # algoritmo di resampling delle maschere: 'mode' (Majority/Mode) o 'nearest' (Nearest Neighbor)
 
 def main():
     seed_everything(42, workers=True) # per riproducibilità
@@ -31,7 +34,9 @@ def main():
         in_channels=IN_CHANNELS,
         batch_size=2,
         num_workers=4,
-        merge_classes=MERGE_CLASSES
+        merge_classes=MERGE_CLASSES,
+        target_gsd=TARGET_GSD,
+        mask_mode='mode' # algoritmo di resampling delle maschere: majority/mode
     )
     num_classes = len(datamodule.class_names)
 
@@ -84,21 +89,24 @@ def main():
     encoder_name=task.model.encoder.__class__.__name__
     decoder_name=task.model.decoder.__class__.__name__
     is_bb_frozen=next(task.model.encoder.parameters()).requires_grad==False
+    exp_name_components = [
+        encoder_name,
+        decoder_name,
+        "frozenBB" if is_bb_frozen else "",
+        "RGB" if IN_CHANNELS==3 else "",
+        "mergedClasses" if MERGE_CLASSES else "",
+        f"{TARGET_GSD}m_{MASK_MODE}Mask" if TARGET_GSD!=1 else ""
+    ]
     logger = pl_loggers.TensorBoardLogger(
         save_dir=REPO_ROOT / "lightning_logs",
-        name=f" \
-        {encoder_name} \
-        _{decoder_name}\
-        {"_frozenBB" if is_bb_frozen else ""}\
-        {"_RGB" if IN_CHANNELS==3 else ""}\
-        {"_mergedClasses" if MERGE_CLASSES else ""}"
+        name= "_".join([comp for comp in exp_name_components if comp])
     )
 
     trainer = pl.Trainer(
         accelerator='auto',
         max_epochs=500,
         logger=logger,
-        #overfit_batches=1,
+        overfit_batches=1,
         log_every_n_steps=1,
         precision='16-mixed',
         accumulate_grad_batches=8,

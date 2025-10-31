@@ -17,7 +17,7 @@ class DINOv3ModelWrapper(Model, nn.Module):
         # necessario per l'implementazione con learning rate differenziali
         self.model = model
         self.encoder = self.model.backbone
-
+ 
         if isinstance(self.model, DINOv3EncoderDeeplabV3PlusDecoder):
             print("Configuring wrapper for DINOv3EncoderDeeplabV3PlusDecoder")
             self.decoder = self.model.deeplab_decoder

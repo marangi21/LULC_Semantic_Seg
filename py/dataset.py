@@ -14,8 +14,9 @@ class SSDataset:
             remap_function=None, 
             class_mapping=None,
             source_gsd: float = 1.0, # espressa in metri
-            target_gsd: float = 1.0  # espressa in metri
-        ):
+            target_gsd: float = 1.0,  # espressa in metri
+            mask_mode = 'nearest' # algoritmo di resampling delle maschere
+    ):
         self.image_paths = image_paths
         self.mask_paths = mask_paths
         self.in_channels = in_channels
@@ -26,6 +27,7 @@ class SSDataset:
         self.source_gsd = source_gsd
         self.target_gsd = target_gsd
         self.resample = (source_gsd != target_gsd)
+        self.mask_mode = mask_mode
 
     def __len__(self):
         return len(self.image_paths)
@@ -58,7 +60,7 @@ class SSDataset:
             mask = augmented['mask']
 
         if self.resample:
-            image, mask = self.change_gsd(image, mask)
+            image, mask = self.change_gsd(image, mask, self.mask_mode)
 
         return { 
             "image": image,
@@ -122,7 +124,7 @@ class SSDataset:
 
         return fig
 
-    def change_gsd(self, image, mask):
+    def change_gsd(self, image, mask, mask_mode='nearest'):
         scale_factor = self.source_gsd / self.target_gsd
         original_shape = image.shape[-2:]
         new_shape = [int(dim*scale_factor) for dim in original_shape]
@@ -133,22 +135,48 @@ class SSDataset:
             mode='bilinear',
             antialias=True
         ).squeeze(0)
-        mask = torch.nn.functional.interpolate(
-            mask.float().unsqueeze(0).unsqueeze(0),
-            size=new_shape,
-            mode='nearest'
-        ).squeeze(0).squeeze(0).long()
-        # Resize con upsampling per riportare alle dimensioni originali.
-        # Questo simula un sensore a diversa GSD
-        image = torch.nn.functional.interpolate(
-            image.unsqueeze(0),
-            size=original_shape,
-            mode='bilinear',
-            antialias=True
-        ).squeeze(0)
-        mask = torch.nn.functional.interpolate(
-            mask.float().unsqueeze(0).unsqueeze(0),
-            size=original_shape,
-            mode='nearest'
-        ).squeeze(0).squeeze(0).long()
+        if mask_mode=='mode':
+            mask = self.downsample_mask_mode(mask, scale_factor)
+        elif mask_mode=='nearest':
+            mask = torch.nn.functional.interpolate(
+                mask.float().unsqueeze(0).unsqueeze(0),
+                size=new_shape,
+                mode='nearest'
+            ).squeeze(0).squeeze(0).long()
+        else:
+            raise ValueError(f"Metodo di resampling della maschera non riconosciuto: {mask_mode}")
         return image, mask
+
+    def downsample_mask_mode(self, mask, scale_factor):
+        from scipy.stats import mode
+        if isinstance(mask, torch.Tensor):
+            mask_np = mask.cpu().numpy()
+        
+        H, W = mask_np.shape
+        if scale_factor > 1:
+            return mask # downsampling non necessario, sarebbe upsampling.
+        
+        # calcolo dimensione finestra e dimensioni dell'imagine downsampled
+        window_size = int(round(1/scale_factor))
+        new_H = int(np.floor(H / window_size))
+        new_W = int(np.floor(W / window_size))
+        downsampled_mask = np.zeros((new_H, new_W), dtype=mask_np.dtype)
+
+        # sliding window con calcolo della moda
+        for i in range(new_H):
+            for j in range(new_W):
+                y0 = i * window_size
+                y1 = y0 + window_size
+                x0 = j * window_size
+                x1 = x0 + window_size
+                window = mask_np[y0:y1, x0:x1]
+
+                # assegna la classe più comune nella finestra al pixel downsampled
+                mode_value = mode(window, axis=None, keepdims=False)
+                downsampled_mask[i,j] = mode_value[0]
+
+        if isinstance(mask, torch.Tensor):
+            return torch.from_numpy(downsampled_mask).to(mask.device)
+        else:
+            return downsampled_mask
+                                    

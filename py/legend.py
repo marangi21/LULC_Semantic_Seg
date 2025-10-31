@@ -32,7 +32,7 @@ class SegmentationLegend():
         self.cmap = ListedColormap(self.colors)
         self.norm = BoundaryNorm(np.arange(n_classes + 1) - 0.5, n_classes)
 
-    def plot(self):
+    def plot(self, bbox_to_anchor: tuple = (1, 1), loc: str = 'upper left'):
         """
         Crea e visualizza una legenda matplotlib basata sui dati della classe.
         Da chiamare dopo aver plottato la maschera.
@@ -43,7 +43,7 @@ class SegmentationLegend():
         ]
         plt.legend(
             handles=patches, 
-            bbox_to_anchor=(1.05, 1), 
-            loc='upper left', 
+            bbox_to_anchor=bbox_to_anchor, 
+            loc=loc, 
             borderaxespad=0.
         )

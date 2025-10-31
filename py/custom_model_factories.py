@@ -16,7 +16,7 @@ class DINOv3ModelFactory(ModelFactory):
         decoder_kwargs: dict,
         head_kwargs: dict,
         **kwargs,
-    ) -> Model:
+    ) -> Model: 
         if task != "segmentation":
             raise ValueError(f"DINOv3ModelFactory supporta solo 'segmentation', non '{task}'.")
         #---------------------------------------------------------------------------------------

@@ -19,7 +19,7 @@ class DiffLRSemanticSegmentationTask(SemanticSegmentationTask):
             {"params": self.model.encoder.parameters(), "lr": opt_hparams.get("encoder_lr", 1e-6)},
             {"params": self.model.decoder.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)},
             {"params": self.model.head.parameters(), "lr": opt_hparams.get("head_lr", 1e-4)}
-        ]
+        ] 
         if hasattr(self.model, 'neck'):
             params.append(
                 {"params": self.model.neck.parameters(), "lr": opt_hparams.get("decoder_lr", 1e-4)}

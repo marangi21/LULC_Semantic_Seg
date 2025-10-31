@@ -32,7 +32,7 @@ def main():
         class_mapping_path=CLASS_MAPPING_PATH,
         in_channels=IN_CHANNELS,
         batch_size=2,
-        num_workers=4,
+        num_workers=4, 
         merge_classes=MERGE_CLASSES,
         target_gsd=TARGET_GSD
     )

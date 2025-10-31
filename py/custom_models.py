@@ -91,8 +91,9 @@ class DINOv3EncoderDeeplabV3PlusDecoder(DINOv3BaseModel):
         super().__init__(in_channels=in_channels, backbone_kwargs=backbone_kwargs)
         self.decoder_channels = 256 # numero di canali delle feature map in input al decoder
         skip_channels = 48          # numero di canali delle feature map per la skip connection (proposto dagli autori deeplabv3+)
+        self.feature_indicies = backbone_kwargs.get("skip_feature_block_index", [9, 39]) # indice del blocco transformer da cui estrarre la feature map per la skip connection
         
-        # Adattara la feature map estratta dal backbone alla dimensione richiesta dal decoder per la skip connection
+        # Adatta la feature map estratta dal backbone alla dimensione richiesta dal decoder per la skip connection
         self.skip_conv = nn.Conv2d(self.hidden_size, skip_channels, kernel_size=1)
 
         # Simulaziomne della lista dei canali che un encoder CNN avrebbe prodotto
@@ -138,7 +139,7 @@ class DINOv3EncoderDeeplabV3PlusDecoder(DINOv3BaseModel):
         # Feature map per il modulo ASPP di DeeplabV3+
         aspp_hidden_state = spatial_hidden_states[-1]  # output finale del backbone (output del 40° transformer block di DINOv3)
         aspp_feature_map = self.tokens_to_image(aspp_hidden_state) # [B, hidden_size, H', W']
-
+ 
         # Feature map per la skip connection del decoder DeeplabV3+
         skip_hidden_state = spatial_hidden_states[self.feature_indicies[0]] # output del 10° transformer block di DINOv3
         skip_feature_map = self.tokens_to_image(skip_hidden_state) # [B, hidden_size, H'', W'']
